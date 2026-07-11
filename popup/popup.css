@@ -236,6 +236,13 @@ main {
   gap: 2px;
 }
 
+.shortcut-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
 .shortcut-name,
 .shortcut-url {
   overflow: hidden;
@@ -244,6 +251,7 @@ main {
 }
 
 .shortcut-name {
+  min-width: 0;
   font-size: 13px;
 }
 

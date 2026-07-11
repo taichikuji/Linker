@@ -150,13 +150,18 @@ function createEntry([shortcut, value]) {
   const row = elements.entryTemplate.content.firstElementChild.cloneNode(true);
   const openButton = row.querySelector('.shortcut-open');
   const deleteButton = row.querySelector('.shortcut-delete');
-  const targetLabel = getTargetLabel(value.url);
-  const openUrl = hasVariable(value.url) ? value.fallbackUrl : value.url;
+  const parameterized = hasVariable(value.url);
+  const openUrl = parameterized ? value.fallbackUrl : value.url;
+  const targetLabel = getTargetLabel(openUrl);
 
   row.querySelector('.shortcut-icon').textContent = shortcut.charAt(0).toLocaleUpperCase();
   row.querySelector('.shortcut-name').textContent = `go/${shortcut}`;
+  row.querySelector('.variable-badge').hidden = !parameterized;
   row.querySelector('.shortcut-url').textContent = targetLabel;
-  openButton.setAttribute('aria-label', `Open go/${shortcut}: ${openUrl}`);
+  openButton.setAttribute(
+    'aria-label',
+    `Open ${parameterized ? 'parameterized shortcut ' : ''}go/${shortcut}: ${openUrl}`
+  );
   openButton.title = openUrl;
   openButton.addEventListener('click', () => openShortcut(openUrl));
 
