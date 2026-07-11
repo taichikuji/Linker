@@ -70,6 +70,12 @@ Not at this time. Thinking about having to pay 5$ just to upload it hurts my sou
 
 If you want to help me with this, I'd really appreciate it, just go ahead and drop a coffee here: [paypal.me](https://paypal.me/ivanperezf)
 
+## What is the color palette of the project's icon?
+
+* White: [#fce7d2](https://www.color-hex.com/color/fce7d2)
+* Orange: [#db8758](https://www.color-hex.com/color/db8758)
+* Brown: [#b13d14](https://www.color-hex.com/color/b13d14)
+
 ---
 
 Anyways that's it for real now. Thanks as always. If you find bugs or errors report them accordingly.
