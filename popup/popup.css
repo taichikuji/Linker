@@ -430,13 +430,6 @@ main {
   font-weight: 700;
 }
 
-.optional-label {
-  font-size: 9px;
-  font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
 .primary-button,
 .secondary-button,
 .danger-button {

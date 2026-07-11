@@ -3,7 +3,6 @@ const CONFIG = {
   HELP_URL: 'https://github.com/taichikuji/Linker#user-guide',
   EXPORT_FILENAME: 'linker.json',
   MAX_SHORTCUT_LENGTH: 100,
-  MAX_DESCRIPTION_LENGTH: 300,
   MAX_IMPORT_BYTES: 1024 * 1024,
   MAX_IMPORT_ENTRIES: 500,
   ALLOWED_PROTOCOLS: ['http:', 'https:'],
@@ -30,7 +29,6 @@ const elements = {
   variableBadge: document.getElementById('variable-badge'),
   fallbackField: document.getElementById('fallback-field'),
   fallbackInput: document.getElementById('fallback-link'),
-  descriptionInput: document.getElementById('description'),
   saveButton: document.getElementById('save'),
   helpButton: document.getElementById('btn-help'),
   importButton: document.getElementById('btn-import'),
@@ -81,9 +79,7 @@ function isStoredEntry(value) {
     return false;
   }
 
-  return value.description === undefined
-    || (typeof value.description === 'string'
-      && value.description.length <= CONFIG.MAX_DESCRIPTION_LENGTH);
+  return true;
 }
 
 function isValidShortcut(shortcut) {
@@ -128,8 +124,7 @@ function renderEntries() {
       const searchableText = [
         shortcut,
         value.url,
-        value.fallbackUrl,
-        value.description
+        value.fallbackUrl
       ].filter(Boolean).join(' ').toLocaleLowerCase();
       return searchableText.includes(query);
     });
@@ -188,9 +183,6 @@ function createExportData(entries) {
       if (hasVariable(value.url)) {
         exportedValue.fallbackUrl = value.fallbackUrl;
       }
-      if (value.description) {
-        exportedValue.description = value.description;
-      }
 
       return [
         shortcut,
@@ -218,19 +210,12 @@ function parseImportData(parsed) {
     const fallbackUrl = typeof rawFallbackUrl === 'string'
       ? rawFallbackUrl.trim()
       : rawFallbackUrl;
-    const description = typeof value === 'object' ? value?.description : undefined;
 
     if (!isValidShortcut(shortcut) || !isValidTargetUrl(url)) return [];
     if (hasVariable(url) && !isValidTargetUrl(fallbackUrl)) return [];
-    if (description !== undefined
-      && (typeof description !== 'string'
-        || description.length > CONFIG.MAX_DESCRIPTION_LENGTH)) {
-      return [];
-    }
 
     const entry = { url };
     if (hasVariable(url)) entry.fallbackUrl = fallbackUrl;
-    if (description?.trim()) entry.description = description.trim();
 
     return [[shortcut, entry]];
   });
@@ -276,7 +261,6 @@ async function saveShortcut() {
   const shortcut = elements.shortcutInput.value.trim();
   const url = elements.urlInput.value.trim();
   const fallbackUrl = elements.fallbackInput.value.trim();
-  const description = elements.descriptionInput.value.trim();
 
   if (!isValidShortcut(shortcut)) {
     showToast('Use a shortcut without spaces or URL punctuation.', 'error');
@@ -296,15 +280,8 @@ async function saveShortcut() {
     return;
   }
 
-  if (description.length > CONFIG.MAX_DESCRIPTION_LENGTH) {
-    showToast(`Descriptions can contain at most ${CONFIG.MAX_DESCRIPTION_LENGTH} characters.`, 'error');
-    elements.descriptionInput.focus();
-    return;
-  }
-
   const entry = { url };
   if (hasVariable(url)) entry.fallbackUrl = fallbackUrl;
-  if (description) entry.description = description;
 
   try {
     await browserApi.storage.sync.set({
