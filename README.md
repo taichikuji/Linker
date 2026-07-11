@@ -34,7 +34,8 @@ If that shortcut already exists, Linker changes the action to **Overwrite**.
 
 Add `{*}` to a destination URL to insert a value from the go link. Linker shows
 a **Variable** badge and asks for a **Default go link to** URL when it detects
-the token.
+the token. In the popup list, parameterized shortcuts have a **VAR** badge and
+show the fallback URL's host and path instead of the variable destination.
 
 For example, configure:
 
