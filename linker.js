@@ -10,7 +10,8 @@ let ruleSyncQueue = Promise.resolve();
 
 /**
  * Returns true when a stored value contains a redirectable web URL.
- * Existing Linkify entries use the shape `{ url, rules }`; the `rules`
+ * In order to provide migration path from Linkify to Linker,
+ * existing Linkify entries, which use the shape `{ url, rules }`, are also considered valid.
  * property remains optional because it was only ever a placeholder.
  */
 function isValidStoredEntry(value) {
