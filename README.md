@@ -24,8 +24,9 @@ request rules.
 
 1. Open the website you want to save.
 2. Open Linker and expand **Add new shortcut**.
-3. Enter a shortcut name. The active tab is used as the destination by default.
-4. Select **Save shortcut**.
+3. Confirm the destination URL. The active tab is used by default.
+4. Enter a shortcut name.
+5. Select **Save shortcut**.
 
 If that shortcut already exists, Linker changes the action to **Overwrite**.
 
@@ -37,10 +38,9 @@ the token.
 
 For example, configure:
 
-- Shortcut: `issue`
 - Destination URL: `https://tracker.example.com/browse/{*}`
 - Default go link to: `https://tracker.example.com/`
-- Description: `Open the issue tracker or a specific issue`
+- Shortcut: `issue`
 
 Then:
 
@@ -70,16 +70,14 @@ recognizes encoded static and parameterized go links and redirects them.
 ### Import and export
 
 Use the arrow actions in the header to import or export JSON. Simple shortcuts
-remain URL strings. Parameterized shortcuts and shortcuts with descriptions use
-an object:
+remain URL strings. Parameterized shortcuts use an object:
 
 ```json
 {
   "docs": "https://example.com/docs",
   "issue": {
     "url": "https://tracker.example.com/browse/{*}",
-    "fallbackUrl": "https://tracker.example.com/",
-    "description": "Open the issue tracker or a specific issue"
+    "fallbackUrl": "https://tracker.example.com/"
   }
 }
 ```
@@ -97,4 +95,4 @@ After loading or reloading the unpacked extension, verify:
 - Bare `go/issue` opens the configured fallback URL.
 - Parameterized links also work when the browser sends them through its search
   engine.
-- Exporting and reimporting the JSON preserves fallback URLs and descriptions.
+- Exporting and reimporting the JSON preserves fallback URLs.

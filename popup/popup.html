@@ -43,20 +43,6 @@
       </summary>
 
       <div class="add-form">
-        <label for="go-link">Shortcut</label>
-        <div class="shortcut-field">
-          <span>go/</span>
-          <input
-            id="go-link"
-            type="text"
-            maxlength="100"
-            autocomplete="off"
-            placeholder="shortcut"
-            aria-describedby="shortcut-hint"
-          >
-        </div>
-        <p id="shortcut-hint" class="field-hint">No spaces or URL punctuation.</p>
-
         <div class="field-label">
           <label for="full-link">Destination URL</label>
           <span id="variable-badge" class="variable-badge" hidden>Variable</span>
@@ -84,14 +70,19 @@
           <p id="fallback-hint" class="field-hint">Used when no variable value is provided.</p>
         </div>
 
-        <label for="description">Description <span class="optional-label">(optional)</span></label>
-        <input
-          id="description"
-          type="text"
-          maxlength="300"
-          autocomplete="off"
-          placeholder="What this shortcut opens"
-        >
+        <label for="go-link">Shortcut</label>
+        <div class="shortcut-field">
+          <span>go/</span>
+          <input
+            id="go-link"
+            type="text"
+            maxlength="100"
+            autocomplete="off"
+            placeholder="shortcut"
+            aria-describedby="shortcut-hint"
+          >
+        </div>
+        <p id="shortcut-hint" class="field-hint">No spaces or URL punctuation.</p>
 
         <button id="save" class="primary-button" type="button">Save shortcut</button>
       </div>
