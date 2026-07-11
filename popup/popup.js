@@ -2,7 +2,6 @@
 const CONFIG = {
   HELP_URL: 'https://github.com/taichikuji/Linker#user-guide',
   EXPORT_FILENAME: 'linker.json',
-  LEGACY_RULES_VALUE: 'Nothing for now',
   MAX_SHORTCUT_LENGTH: 100,
   MAX_IMPORT_BYTES: 1024 * 1024,
   MAX_IMPORT_ENTRIES: 500,
@@ -171,7 +170,7 @@ function parseImportData(parsed) {
     const shortcut = rawShortcut.trim();
     const url = typeof value === 'string' ? value : value?.url;
     if (!isValidShortcut(shortcut) || !isValidTargetUrl(url)) return [];
-    return [[shortcut, { url, rules: CONFIG.LEGACY_RULES_VALUE }]];
+    return [[shortcut, { url }]];
   });
 
   if (validEntries.length === 0) {
@@ -221,12 +220,9 @@ async function saveShortcut() {
 
   try {
     await browserApi.storage.sync.set({
-      [shortcut]: {
-        url,
-        rules: CONFIG.LEGACY_RULES_VALUE
-      }
+      [shortcut]: { url }
     });
-    state.entries[shortcut] = { url, rules: CONFIG.LEGACY_RULES_VALUE };
+    state.entries[shortcut] = { url };
     renderEntries();
     updateSaveButton();
     showToast(`Saved go/${shortcut}.`, 'success');
