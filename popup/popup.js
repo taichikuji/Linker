@@ -3,9 +3,11 @@ const CONFIG = {
   HELP_URL: 'https://github.com/taichikuji/Linker#user-guide',
   EXPORT_FILENAME: 'linker.json',
   MAX_SHORTCUT_LENGTH: 100,
+  MAX_DESCRIPTION_LENGTH: 300,
   MAX_IMPORT_BYTES: 1024 * 1024,
   MAX_IMPORT_ENTRIES: 500,
-  ALLOWED_PROTOCOLS: ['http:', 'https:']
+  ALLOWED_PROTOCOLS: ['http:', 'https:'],
+  VARIABLE_TOKEN: '{*}'
 };
 
 const browserApi = globalThis.browser ?? globalThis.chrome;
@@ -25,6 +27,10 @@ const elements = {
   addSection: document.getElementById('add-section'),
   shortcutInput: document.getElementById('go-link'),
   urlInput: document.getElementById('full-link'),
+  variableBadge: document.getElementById('variable-badge'),
+  fallbackField: document.getElementById('fallback-field'),
+  fallbackInput: document.getElementById('fallback-link'),
+  descriptionInput: document.getElementById('description'),
   saveButton: document.getElementById('save'),
   helpButton: document.getElementById('btn-help'),
   importButton: document.getElementById('btn-import'),
@@ -51,11 +57,13 @@ browserApi.storage.onChanged.addListener((changes, namespace) => {
 async function initialize() {
   setupEventListeners();
   await Promise.all([loadEntries(), populateCurrentTabUrl()]);
+  updateVariableFields();
 }
 
 function setupEventListeners() {
   elements.search.addEventListener('input', renderEntries);
   elements.shortcutInput.addEventListener('input', updateSaveButton);
+  elements.urlInput.addEventListener('input', updateVariableFields);
   elements.saveButton.addEventListener('click', saveShortcut);
   elements.helpButton.addEventListener('click', openHelp);
   elements.importButton.addEventListener('click', () => elements.fileInput.click());
@@ -65,7 +73,17 @@ function setupEventListeners() {
 }
 
 function isStoredEntry(value) {
-  return Boolean(value && typeof value === 'object' && typeof value.url === 'string');
+  if (!value || typeof value !== 'object' || !isValidTargetUrl(value.url)) {
+    return false;
+  }
+
+  if (hasVariable(value.url) && !isValidTargetUrl(value.fallbackUrl)) {
+    return false;
+  }
+
+  return value.description === undefined
+    || (typeof value.description === 'string'
+      && value.description.length <= CONFIG.MAX_DESCRIPTION_LENGTH);
 }
 
 function isValidShortcut(shortcut) {
@@ -75,11 +93,17 @@ function isValidShortcut(shortcut) {
 }
 
 function isValidTargetUrl(url) {
+  if (typeof url !== 'string') return false;
+
   try {
     return CONFIG.ALLOWED_PROTOCOLS.includes(new URL(url).protocol);
   } catch {
     return false;
   }
+}
+
+function hasVariable(url) {
+  return url.includes(CONFIG.VARIABLE_TOKEN);
 }
 
 async function loadEntries() {
@@ -101,7 +125,12 @@ function renderEntries() {
   const entries = Object.entries(state.entries)
     .sort(([left], [right]) => left.localeCompare(right))
     .filter(([shortcut, value]) => {
-      const searchableText = `${shortcut} ${value.url}`.toLocaleLowerCase();
+      const searchableText = [
+        shortcut,
+        value.url,
+        value.fallbackUrl,
+        value.description
+      ].filter(Boolean).join(' ').toLocaleLowerCase();
       return searchableText.includes(query);
     });
 
@@ -127,13 +156,14 @@ function createEntry([shortcut, value]) {
   const openButton = row.querySelector('.shortcut-open');
   const deleteButton = row.querySelector('.shortcut-delete');
   const targetLabel = getTargetLabel(value.url);
+  const openUrl = hasVariable(value.url) ? value.fallbackUrl : value.url;
 
   row.querySelector('.shortcut-icon').textContent = shortcut.charAt(0).toLocaleUpperCase();
   row.querySelector('.shortcut-name').textContent = `go/${shortcut}`;
   row.querySelector('.shortcut-url').textContent = targetLabel;
-  openButton.setAttribute('aria-label', `Open go/${shortcut}: ${value.url}`);
-  openButton.title = value.url;
-  openButton.addEventListener('click', () => openShortcut(value.url));
+  openButton.setAttribute('aria-label', `Open go/${shortcut}: ${openUrl}`);
+  openButton.title = openUrl;
+  openButton.addEventListener('click', () => openShortcut(openUrl));
 
   deleteButton.setAttribute('aria-label', `Delete go/${shortcut}`);
   deleteButton.addEventListener('click', () => deleteShortcut(shortcut));
@@ -152,7 +182,21 @@ function getTargetLabel(url) {
 
 function createExportData(entries) {
   return Object.fromEntries(
-    Object.entries(entries).map(([shortcut, value]) => [shortcut, value.url])
+    Object.entries(entries).map(([shortcut, value]) => {
+      const exportedValue = { url: value.url };
+
+      if (hasVariable(value.url)) {
+        exportedValue.fallbackUrl = value.fallbackUrl;
+      }
+      if (value.description) {
+        exportedValue.description = value.description;
+      }
+
+      return [
+        shortcut,
+        Object.keys(exportedValue).length === 1 ? value.url : exportedValue
+      ];
+    })
   );
 }
 
@@ -168,9 +212,27 @@ function parseImportData(parsed) {
 
   const validEntries = sourceEntries.flatMap(([rawShortcut, value]) => {
     const shortcut = rawShortcut.trim();
-    const url = typeof value === 'string' ? value : value?.url;
+    const rawUrl = typeof value === 'string' ? value : value?.url;
+    const rawFallbackUrl = typeof value === 'object' ? value?.fallbackUrl : undefined;
+    const url = typeof rawUrl === 'string' ? rawUrl.trim() : rawUrl;
+    const fallbackUrl = typeof rawFallbackUrl === 'string'
+      ? rawFallbackUrl.trim()
+      : rawFallbackUrl;
+    const description = typeof value === 'object' ? value?.description : undefined;
+
     if (!isValidShortcut(shortcut) || !isValidTargetUrl(url)) return [];
-    return [[shortcut, { url }]];
+    if (hasVariable(url) && !isValidTargetUrl(fallbackUrl)) return [];
+    if (description !== undefined
+      && (typeof description !== 'string'
+        || description.length > CONFIG.MAX_DESCRIPTION_LENGTH)) {
+      return [];
+    }
+
+    const entry = { url };
+    if (hasVariable(url)) entry.fallbackUrl = fallbackUrl;
+    if (description?.trim()) entry.description = description.trim();
+
+    return [[shortcut, entry]];
   });
 
   if (validEntries.length === 0) {
@@ -202,9 +264,19 @@ function updateSaveButton() {
   elements.saveButton.textContent = state.entries[shortcut] ? 'Overwrite' : 'Save shortcut';
 }
 
+function updateVariableFields() {
+  const parameterized = hasVariable(elements.urlInput.value);
+  elements.variableBadge.hidden = !parameterized;
+  elements.fallbackField.hidden = !parameterized;
+  elements.fallbackInput.disabled = !parameterized;
+  elements.fallbackInput.required = parameterized;
+}
+
 async function saveShortcut() {
   const shortcut = elements.shortcutInput.value.trim();
   const url = elements.urlInput.value.trim();
+  const fallbackUrl = elements.fallbackInput.value.trim();
+  const description = elements.descriptionInput.value.trim();
 
   if (!isValidShortcut(shortcut)) {
     showToast('Use a shortcut without spaces or URL punctuation.', 'error');
@@ -218,11 +290,27 @@ async function saveShortcut() {
     return;
   }
 
+  if (hasVariable(url) && !isValidTargetUrl(fallbackUrl)) {
+    showToast('Enter a valid default URL for an empty variable.', 'error');
+    elements.fallbackInput.focus();
+    return;
+  }
+
+  if (description.length > CONFIG.MAX_DESCRIPTION_LENGTH) {
+    showToast(`Descriptions can contain at most ${CONFIG.MAX_DESCRIPTION_LENGTH} characters.`, 'error');
+    elements.descriptionInput.focus();
+    return;
+  }
+
+  const entry = { url };
+  if (hasVariable(url)) entry.fallbackUrl = fallbackUrl;
+  if (description) entry.description = description;
+
   try {
     await browserApi.storage.sync.set({
-      [shortcut]: { url }
+      [shortcut]: entry
     });
-    state.entries[shortcut] = { url };
+    state.entries[shortcut] = entry;
     renderEntries();
     updateSaveButton();
     showToast(`Saved go/${shortcut}.`, 'success');

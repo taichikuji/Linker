@@ -57,8 +57,41 @@
         </div>
         <p id="shortcut-hint" class="field-hint">No spaces or URL punctuation.</p>
 
-        <label for="full-link">Destination URL</label>
-        <input id="full-link" type="url" placeholder="https://example.com/" spellcheck="false">
+        <div class="field-label">
+          <label for="full-link">Destination URL</label>
+          <span id="variable-badge" class="variable-badge" hidden>Variable</span>
+        </div>
+        <input
+          id="full-link"
+          type="url"
+          placeholder="https://example.com/items/{*}"
+          spellcheck="false"
+          aria-describedby="destination-hint"
+        >
+        <p id="destination-hint" class="field-hint">
+          Add <code>{*}</code> where the trailing go link value should appear.
+        </p>
+
+        <div id="fallback-field" class="conditional-field" hidden>
+          <label for="fallback-link">Default go link to</label>
+          <input
+            id="fallback-link"
+            type="url"
+            placeholder="https://example.com/"
+            spellcheck="false"
+            aria-describedby="fallback-hint"
+          >
+          <p id="fallback-hint" class="field-hint">Used when no variable value is provided.</p>
+        </div>
+
+        <label for="description">Description <span class="optional-label">(optional)</span></label>
+        <input
+          id="description"
+          type="text"
+          maxlength="300"
+          autocomplete="off"
+          placeholder="What this shortcut opens"
+        >
 
         <button id="save" class="primary-button" type="button">Save shortcut</button>
       </div>
