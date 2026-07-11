@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Linker</title>
+  <link rel="stylesheet" href="popup.css">
+  <script defer src="popup.js"></script>
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">L</span>
+      <div>
+        <h1>Linker</h1>
+        <p>Your shortcuts, one hop away</p>
+      </div>
+    </div>
+
+    <div class="header-actions" role="toolbar" aria-label="Linker actions">
+      <button id="btn-help" class="icon-button" type="button" title="Open help" aria-label="Open help">?</button>
+      <button id="btn-import" class="icon-button" type="button" title="Import JSON" aria-label="Import shortcuts">↑</button>
+      <input id="import-file" class="visually-hidden" type="file" accept=".json,application/json">
+      <button id="btn-export" class="icon-button" type="button" title="Export JSON" aria-label="Export shortcuts">↓</button>
+    </div>
+  </header>
+
+  <main>
+    <label class="search-field" for="search">
+      <span aria-hidden="true">⌕</span>
+      <input id="search" type="search" autocomplete="off" placeholder="Search shortcuts">
+    </label>
+
+    <section class="shortcuts" aria-label="Saved shortcuts">
+      <ul id="item-list" class="shortcut-list"></ul>
+      <p id="empty-state" class="empty-state" hidden></p>
+    </section>
+
+    <details id="add-section" class="add-section">
+      <summary>
+        <span class="summary-icon" aria-hidden="true">+</span>
+        Add new shortcut
+      </summary>
+
+      <div class="add-form">
+        <label for="go-link">Shortcut</label>
+        <div class="shortcut-field">
+          <span>go/</span>
+          <input
+            id="go-link"
+            type="text"
+            maxlength="100"
+            autocomplete="off"
+            placeholder="shortcut"
+            aria-describedby="shortcut-hint"
+          >
+        </div>
+        <p id="shortcut-hint" class="field-hint">No spaces or URL punctuation.</p>
+
+        <label for="full-link">Destination URL</label>
+        <input id="full-link" type="url" placeholder="https://example.com/" spellcheck="false">
+
+        <button id="save" class="primary-button" type="button">Save shortcut</button>
+      </div>
+    </details>
+  </main>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite">
+    <span id="toast-message"></span>
+    <button id="toast-close" class="toast-close" type="button" aria-label="Dismiss notification">×</button>
+  </div>
+
+  <div id="confirm-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="modal">
+      <p id="confirm-title"></p>
+      <div class="modal-actions">
+        <button id="confirm-cancel" class="secondary-button" type="button">Cancel</button>
+        <button id="confirm-ok" class="danger-button" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <template id="shortcut-template">
+    <li class="shortcut-item">
+      <button class="shortcut-open" type="button">
+        <span class="shortcut-icon" aria-hidden="true"></span>
+        <span class="shortcut-copy">
+          <strong class="shortcut-name"></strong>
+          <span class="shortcut-url"></span>
+        </span>
+        <span class="open-indicator" aria-hidden="true">↗</span>
+      </button>
+      <button class="shortcut-delete" type="button" title="Delete shortcut" aria-label="Delete shortcut">×</button>
+    </li>
+  </template>
+</body>
+</html>
