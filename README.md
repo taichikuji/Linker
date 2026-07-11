@@ -12,6 +12,9 @@ your signed-in browser profile.
 2. Enable developer mode.
 3. Choose **Load unpacked** and select this directory.
 
+To keep Linker visible in the browser toolbar, open the browser's extensions
+menu and pin Linker. Toolbar placement is controlled by the browser.
+
 Linker uses Manifest V3 and requires support for dynamic declarative network
 request rules.
 
