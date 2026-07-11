@@ -2,7 +2,8 @@
 const CONFIG = {
   STORAGE_NAMESPACE: 'sync',
   ALLOWED_PROTOCOLS: ['http:', 'https:'],
-  RESOURCE_TYPES: ['main_frame']
+  RESOURCE_TYPES: ['main_frame'],
+  VARIABLE_TOKEN: '{*}'
 };
 
 const browserApi = globalThis.browser ?? globalThis.chrome;
@@ -12,18 +13,31 @@ let ruleSyncQueue = Promise.resolve();
  * Returns true when a stored value contains a redirectable web URL.
  * In order to provide migration path from Linkify to Linker,
  * existing Linkify entries, which use the shape `{ url, rules }`, are also considered valid.
- * property remains optional because it was only ever a placeholder.
+ * The fallback URL is required only for parameterized entries.
  */
 function isValidStoredEntry(value) {
   if (!value || typeof value !== 'object' || typeof value.url !== 'string') {
     return false;
   }
 
+  if (!isValidTargetUrl(value.url)) {
+    return false;
+  }
+
+  return !hasVariable(value.url)
+    || (typeof value.fallbackUrl === 'string' && isValidTargetUrl(value.fallbackUrl));
+}
+
+function isValidTargetUrl(url) {
   try {
-    return CONFIG.ALLOWED_PROTOCOLS.includes(new URL(value.url).protocol);
+    return CONFIG.ALLOWED_PROTOCOLS.includes(new URL(url).protocol);
   } catch {
     return false;
   }
+}
+
+function hasVariable(url) {
+  return url.includes(CONFIG.VARIABLE_TOKEN);
 }
 
 /**
@@ -44,8 +58,9 @@ async function getStoredEntries() {
 }
 
 /**
- * Builds the two historical redirect rules for every shortcut:
- * direct navigation to go/<shortcut> and search-engine fallback URLs.
+ * Builds direct-navigation and search-engine redirect rules for every shortcut.
+ * Parameterized entries get additional higher-priority rules that substitute
+ * the value following the shortcut into each `{*}` token.
  */
 function buildRedirectRules(entries) {
   let nextRuleId = 1;
@@ -54,14 +69,47 @@ function buildRedirectRules(entries) {
   entries.forEach(([shortcut, value]) => {
     const directShortcut = escapeRegex(shortcut);
     const encodedShortcut = escapeRegex(encodeURIComponent(shortcut));
+    const parameterized = hasVariable(value.url);
+    const defaultUrl = parameterized ? value.fallbackUrl : value.url;
+
+    if (parameterized) {
+      const regexSubstitution = value.url.replaceAll(CONFIG.VARIABLE_TOKEN, '\\1');
+
+      rules.push(
+        {
+          id: nextRuleId++,
+          priority: 2,
+          action: {
+            type: 'redirect',
+            redirect: { regexSubstitution }
+          },
+          condition: {
+            regexFilter: `^https?://go/${directShortcut}/([^?#]+?)/?$`,
+            resourceTypes: CONFIG.RESOURCE_TYPES
+          }
+        },
+        {
+          id: nextRuleId++,
+          priority: 2,
+          action: {
+            type: 'redirect',
+            redirect: { regexSubstitution }
+          },
+          condition: {
+            regexFilter: `^https?://.*[?&][^#]*=go%2F${encodedShortcut}%2F([^&#]+)([&#].*)?$`,
+            resourceTypes: CONFIG.RESOURCE_TYPES
+          }
+        }
+      );
+    }
 
     rules.push(
       {
-        id: nextRuleId,
+        id: nextRuleId++,
         priority: 1,
         action: {
           type: 'redirect',
-          redirect: { url: value.url }
+          redirect: { url: defaultUrl }
         },
         condition: {
           regexFilter: `^https?://go/${directShortcut}/?$`,
@@ -69,11 +117,11 @@ function buildRedirectRules(entries) {
         }
       },
       {
-        id: nextRuleId + 1,
+        id: nextRuleId++,
         priority: 1,
         action: {
           type: 'redirect',
-          redirect: { url: value.url }
+          redirect: { url: defaultUrl }
         },
         condition: {
           regexFilter: `^https?://.*[?&][^#]*=go%2F${encodedShortcut}(&|$)`,
@@ -81,8 +129,6 @@ function buildRedirectRules(entries) {
         }
       }
     );
-
-    nextRuleId += 2;
   });
 
   return rules;
