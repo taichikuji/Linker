@@ -24,7 +24,7 @@
   },
   "action": {
     "default_popup": "src/popup/popup.html",
-    "default_title": "Linker",
+    "default_title": "Click to Go/Link",
     "default_icon": {
       "16": "assets/icon.png",
       "32": "assets/icon.png"
