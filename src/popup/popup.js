@@ -1,7 +1,6 @@
 // Constants and Configuration
 const CONFIG = {
   HELP_URL: 'https://github.com/taichikuji/Linker#user-guide',
-  EXPORT_FILENAME: 'linker.json',
   MAX_SHORTCUT_LENGTH: 100,
   MAX_IMPORT_BYTES: 1024 * 1024,
   MAX_IMPORT_ENTRIES: 500,
@@ -350,7 +349,8 @@ function exportShortcuts() {
     const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = objectUrl;
-    anchor.download = CONFIG.EXPORT_FILENAME;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    anchor.download = `linker-export-${dateStr}.json`;
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
     showToast('Exported your shortcuts.', 'success');
