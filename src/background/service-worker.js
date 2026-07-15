@@ -7,6 +7,7 @@ const CONFIG = {
 };
 
 const browserApi = globalThis.browser ?? globalThis.chrome;
+const MAX_REGEX_RULES = browserApi.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
 let ruleSyncQueue = Promise.resolve();
 
 /**
@@ -58,9 +59,9 @@ async function getStoredEntries() {
 }
 
 /**
- * Builds direct-navigation and search-engine redirect rules for every shortcut.
- * Parameterized entries get additional higher-priority rules that substitute
- * the value following the shortcut into each `{*}` token.
+ * Builds one fallback rule for every shortcut. Parameterized entries get one
+ * additional higher-priority rule that substitutes the trailing value into
+ * each `{*}` token.
  */
 function buildRedirectRules(entries) {
   let nextRuleId = 1;
@@ -73,62 +74,34 @@ function buildRedirectRules(entries) {
     const defaultUrl = parameterized ? value.fallbackUrl : value.url;
 
     if (parameterized) {
-      const regexSubstitution = value.url.replaceAll(CONFIG.VARIABLE_TOKEN, '\\1');
+      const regexSubstitution = value.url.replaceAll(CONFIG.VARIABLE_TOKEN, '\\1\\2');
 
-      rules.push(
-        {
-          id: nextRuleId++,
-          priority: 2,
-          action: {
-            type: 'redirect',
-            redirect: { regexSubstitution }
-          },
-          condition: {
-            regexFilter: `^https?://go/${directShortcut}/([^?#]+?)/?$`,
-            resourceTypes: CONFIG.RESOURCE_TYPES
-          }
+      rules.push({
+        id: nextRuleId++,
+        priority: 2,
+        action: {
+          type: 'redirect',
+          redirect: { regexSubstitution }
         },
-        {
-          id: nextRuleId++,
-          priority: 2,
-          action: {
-            type: 'redirect',
-            redirect: { regexSubstitution }
-          },
-          condition: {
-            regexFilter: `^https?://.*[?&][^#]*=go%2F${encodedShortcut}%2F([^&#]+)([&#].*)?$`,
-            resourceTypes: CONFIG.RESOURCE_TYPES
-          }
+        condition: {
+          regexFilter: `^(?:https?://go/${directShortcut}/([^?#]+?)/?$|https?://.*[?&][^#]*=go%2F${encodedShortcut}%2F([^&#]+)(?:[&#].*)?$)`,
+          resourceTypes: CONFIG.RESOURCE_TYPES
         }
-      );
+      });
     }
 
-    rules.push(
-      {
-        id: nextRuleId++,
-        priority: 1,
-        action: {
-          type: 'redirect',
-          redirect: { url: defaultUrl }
-        },
-        condition: {
-          regexFilter: `^https?://go/${directShortcut}/?$`,
-          resourceTypes: CONFIG.RESOURCE_TYPES
-        }
+    rules.push({
+      id: nextRuleId++,
+      priority: 1,
+      action: {
+        type: 'redirect',
+        redirect: { url: defaultUrl }
       },
-      {
-        id: nextRuleId++,
-        priority: 1,
-        action: {
-          type: 'redirect',
-          redirect: { url: defaultUrl }
-        },
-        condition: {
-          regexFilter: `^https?://.*[?&][^#]*=go%2F${encodedShortcut}(&|$)`,
-          resourceTypes: CONFIG.RESOURCE_TYPES
-        }
+      condition: {
+        regexFilter: `^(?:https?://go/${directShortcut}/?$|https?://.*[?&][^#]*=go%2F${encodedShortcut}(?:&|$))`,
+        resourceTypes: CONFIG.RESOURCE_TYPES
       }
-    );
+    });
   });
 
   return rules;
@@ -140,6 +113,13 @@ function buildRedirectRules(entries) {
 async function updateRedirectRules() {
   const entries = await getStoredEntries();
   const newRules = buildRedirectRules(entries);
+
+  if (newRules.length > MAX_REGEX_RULES) {
+    throw new Error(
+      `Generated ${newRules.length} regex rules; browser limit is ${MAX_REGEX_RULES}.`
+    );
+  }
+
   const oldRules = await browserApi.declarativeNetRequest.getDynamicRules();
 
   await browserApi.declarativeNetRequest.updateDynamicRules({

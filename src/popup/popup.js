@@ -9,6 +9,8 @@ const CONFIG = {
 };
 
 const browserApi = globalThis.browser ?? globalThis.chrome;
+const MAX_REGEX_RULES = browserApi.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
+const REGEX_RULE_WARNING_THRESHOLD = Math.max(0, MAX_REGEX_RULES - 100);
 
 // State Management
 const state = {
@@ -20,6 +22,7 @@ const state = {
 // DOM Elements
 const elements = {
   search: document.getElementById('search'),
+  capacityWarning: document.getElementById('capacity-warning'),
   itemList: document.getElementById('item-list'),
   emptyState: document.getElementById('empty-state'),
   addSection: document.getElementById('add-section'),
@@ -101,6 +104,33 @@ function hasVariable(url) {
   return url.includes(CONFIG.VARIABLE_TOKEN);
 }
 
+function countRedirectRules(entries) {
+  return Object.values(entries).reduce(
+    (count, value) => count + (hasVariable(value.url) ? 2 : 1),
+    0
+  );
+}
+
+function updateCapacityWarning() {
+  const ruleCount = countRedirectRules(state.entries);
+  let message = '';
+  let type = 'warning';
+
+  if (ruleCount > MAX_REGEX_RULES) {
+    type = 'error';
+    message = `Browser limit exceeded: ${ruleCount}/${MAX_REGEX_RULES} redirect rules. Recent synced changes are inactive; delete shortcuts to restore routing.`;
+  } else if (ruleCount === MAX_REGEX_RULES) {
+    type = 'error';
+    message = `Browser limit reached: ${ruleCount}/${MAX_REGEX_RULES} redirect rules. Delete a shortcut before adding another.`;
+  } else if (ruleCount >= REGEX_RULE_WARNING_THRESHOLD) {
+    message = `Approaching browser limit: ${ruleCount}/${MAX_REGEX_RULES} redirect rules used.`;
+  }
+
+  elements.capacityWarning.textContent = message;
+  elements.capacityWarning.dataset.type = type;
+  elements.capacityWarning.hidden = !message;
+}
+
 async function loadEntries() {
   try {
     const stored = await browserApi.storage.sync.get(null);
@@ -109,6 +139,7 @@ async function loadEntries() {
     );
     renderEntries();
     updateSaveButton();
+    updateCapacityWarning();
   } catch (error) {
     console.error('Error loading shortcuts:', error);
     showToast('Could not load your shortcuts.', 'error');
@@ -287,6 +318,17 @@ async function saveShortcut() {
   const entry = { url };
   if (hasVariable(url)) entry.fallbackUrl = fallbackUrl;
 
+  const nextEntries = { ...state.entries, [shortcut]: entry };
+  const nextRuleCount = countRedirectRules(nextEntries);
+
+  if (nextRuleCount > MAX_REGEX_RULES) {
+    showToast(
+      `Cannot save: ${nextRuleCount} redirect rules exceed the browser limit of ${MAX_REGEX_RULES}.`,
+      'error'
+    );
+    return;
+  }
+
   try {
     await browserApi.storage.sync.set({
       [shortcut]: entry
@@ -294,6 +336,7 @@ async function saveShortcut() {
     state.entries[shortcut] = entry;
     renderEntries();
     updateSaveButton();
+    updateCapacityWarning();
     showToast(`Saved go/${shortcut}.`, 'success');
   } catch (error) {
     console.error('Error saving shortcut:', error);
@@ -324,6 +367,7 @@ async function deleteShortcut(shortcut) {
     delete state.entries[shortcut];
     renderEntries();
     updateSaveButton();
+    updateCapacityWarning();
     showToast(`Deleted go/${shortcut}.`, 'success');
   } catch (error) {
     console.error('Error deleting shortcut:', error);
@@ -371,10 +415,20 @@ async function importShortcuts(event) {
 
     const parsed = JSON.parse(await file.text());
     const imported = parseImportData(parsed);
+    const nextEntries = { ...state.entries, ...imported.entries };
+    const nextRuleCount = countRedirectRules(nextEntries);
+
+    if (nextRuleCount > MAX_REGEX_RULES) {
+      throw new Error(
+        `Import would generate ${nextRuleCount} redirect rules; browser limit is ${MAX_REGEX_RULES}.`
+      );
+    }
+
     await browserApi.storage.sync.set(imported.entries);
-    state.entries = { ...state.entries, ...imported.entries };
+    state.entries = nextEntries;
     renderEntries();
     updateSaveButton();
+    updateCapacityWarning();
 
     const suffix = imported.skippedCount > 0
       ? ` Skipped ${imported.skippedCount} invalid.`
