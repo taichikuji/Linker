@@ -15,6 +15,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Test
+        run: node --test
+
       - name: Set version
         id: version
         run: |
@@ -23,21 +30,26 @@ jobs:
           else
             VERSION=$(jq -r .version manifest.json)
           fi
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Create ZIP
+      - name: Create browser ZIPs
         run: |
-          zip -r "Linker_${{ env.VERSION }}.chromium.zip" . -x "*.git*" ".github/*" "README.md"
+          zip -r "Linker_${{ steps.version.outputs.VERSION }}.chromium.zip" . -x "*.git*" ".github/*" "README.md" "tests/*"
+          cp "Linker_${{ steps.version.outputs.VERSION }}.chromium.zip" "Linker_${{ steps.version.outputs.VERSION }}.firefox.zip"
 
-      - name: Upload Artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: Linker-extension
-          path: Linker_${{ env.VERSION }}.chromium.zip
+          name: Linker-extensions
+          path: |
+            Linker_${{ steps.version.outputs.VERSION }}.chromium.zip
+            Linker_${{ steps.version.outputs.VERSION }}.firefox.zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: Linker_${{ env.VERSION }}.chromium.zip
+          files: |
+            Linker_${{ steps.version.outputs.VERSION }}.chromium.zip
+            Linker_${{ steps.version.outputs.VERSION }}.firefox.zip
           generate_release_notes: true
