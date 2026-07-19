@@ -9,6 +9,7 @@ const backgroundSource = readFileSync(
   join(root, 'src/background/service-worker.js'),
   'utf8'
 );
+const popupSource = readFileSync(join(root, 'src/popup/popup.js'), 'utf8');
 
 function runBackground(apiNamespace) {
   const listeners = {};
@@ -66,6 +67,42 @@ function runBackground(apiNamespace) {
   return { listeners, updated };
 }
 
+function runOpenImport(apiNamespace, search = '') {
+  let filePickerOpened = false;
+  let tabUrl;
+  const fileInput = {
+    click: () => {
+      filePickerOpened = true;
+    }
+  };
+  const api = {
+    declarativeNetRequest: { MAX_NUMBER_OF_REGEX_RULES: 1000 },
+    storage: { onChanged: { addListener() {} } },
+    tabs: {
+      create: ({ url }) => {
+        tabUrl = url;
+      }
+    }
+  };
+  const context = vm.createContext({
+    [apiNamespace]: api,
+    console,
+    document: {
+      addEventListener() {},
+      getElementById: id => id === 'import-file' ? fileInput : {}
+    },
+    location: {
+      href: `moz-extension://linker/src/popup/popup.html${search}`,
+      search
+    },
+    URL
+  });
+
+  vm.runInContext(popupSource, context);
+  vm.runInContext('openImport()', context);
+  return { filePickerOpened, tabUrl };
+}
+
 for (const apiNamespace of ['browser', 'chrome']) {
   test(`background initializes through the ${apiNamespace} API`, async () => {
     const { listeners, updated } = runBackground(apiNamespace);
@@ -101,6 +138,20 @@ for (const apiNamespace of ['browser', 'chrome']) {
     );
   });
 }
+
+test('Firefox opens imports outside the toolbar popup', () => {
+  const firefoxPopup = runOpenImport('browser');
+  const firefoxTab = runOpenImport('browser', '?import');
+  const chromiumPopup = runOpenImport('chrome');
+
+  assert.equal(
+    firefoxPopup.tabUrl,
+    'moz-extension://linker/src/popup/popup.html?import'
+  );
+  assert.equal(firefoxPopup.filePickerOpened, false);
+  assert.equal(firefoxTab.filePickerOpened, true);
+  assert.equal(chromiumPopup.filePickerOpened, true);
+});
 
 test('manifest declares Chromium and Firefox background contexts', () => {
   const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));

@@ -66,10 +66,19 @@ function setupEventListeners() {
   elements.urlInput.addEventListener('input', updateVariableFields);
   elements.saveButton.addEventListener('click', saveShortcut);
   elements.helpButton.addEventListener('click', openHelp);
-  elements.importButton.addEventListener('click', () => elements.fileInput.click());
+  elements.importButton.addEventListener('click', openImport);
   elements.fileInput.addEventListener('change', importShortcuts);
   elements.exportButton.addEventListener('click', exportShortcuts);
   elements.toastClose.addEventListener('click', hideToast);
+}
+
+function openImport() {
+  if (globalThis.browser && location.search !== '?import') {
+    browserApi.tabs.create({ url: new URL('?import', location.href).href });
+    return;
+  }
+
+  elements.fileInput.click();
 }
 
 function isStoredEntry(value) {
