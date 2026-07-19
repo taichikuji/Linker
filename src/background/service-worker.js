@@ -148,9 +148,5 @@ browserApi.storage.onChanged.addListener((changes, namespace) => {
   }
 });
 
-self.addEventListener('activate', event => {
-  event.waitUntil(scheduleRuleUpdate());
-});
-
-// Service workers can be restarted independently of browser startup events.
+// Background contexts can start independently of browser startup events.
 scheduleRuleUpdate();
