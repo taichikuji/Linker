@@ -4,39 +4,29 @@
 
 :root {
   color-scheme: light dark;
-  --base: #eff1f5;
-  --mantle: #e6e9ef;
-  --surface: #ffffff;
-  --surface-hover: #dce0e8;
-  --border: #ccd0da;
-  --text: #4c4f69;
-  --muted: #6c6f85;
-  --blue: #1e66f5;
-  --blue-hover: #1a5ad7;
-  --red: #d20f39;
-  --red-hover: #b80d32;
-  --green: #40a02b;
-  --yellow: #df8e1d;
-  --shadow: rgba(76, 79, 105, 0.14);
-}
+  --red: light-dark(#d20f39, #f38ba8);
+  --maroon: light-dark(#e64553, #eba0ac);
+  --yellow: light-dark(#df8e1d, #f9e2af);
+  --green: light-dark(#40a02b, #a6e3a1);
+  --sapphire: light-dark(#209fb5, #74c7ec);
+  --blue: light-dark(#1e66f5, #89b4fa);
+  --lavender: light-dark(#7287fd, #b4befe);
+  --text: light-dark(#4c4f69, #cdd6f4);
+  --subtext0: light-dark(#6c6f85, #a6adc8);
+  --surface1: light-dark(#bcc0cc, #45475a);
+  --surface0: light-dark(#ccd0da, #313244);
+  --base: light-dark(#eff1f5, #1e1e2e);
+  --mantle: light-dark(#e6e9ef, #181825);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --base: #1e1e2e;
-    --mantle: #181825;
-    --surface: #252536;
-    --surface-hover: #313244;
-    --border: #45475a;
-    --text: #cdd6f4;
-    --muted: #a6adc8;
-    --blue: #89b4fa;
-    --blue-hover: #74c7ec;
-    --red: #f38ba8;
-    --red-hover: #eba0ac;
-    --green: #a6e3a1;
-    --yellow: #f9e2af;
-    --shadow: rgba(0, 0, 0, 0.28);
-  }
+  --surface: light-dark(#ffffff, var(--surface0));
+  --surface-hover: light-dark(var(--surface0), var(--surface1));
+  --border: light-dark(var(--surface0), var(--surface1));
+  --muted: var(--subtext0);
+  --blue-hover: var(--sapphire);
+  --red-hover: var(--maroon);
+  --on-accent: light-dark(#ffffff, var(--base));
+  --focus-ring: light-dark(var(--blue), var(--lavender));
+  --shadow: light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.3));
 }
 
 body {
@@ -60,7 +50,7 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--blue);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -98,7 +88,7 @@ button {
   place-items: center;
   border-radius: 10px;
   background: var(--blue);
-  color: var(--mantle);
+  color: var(--on-accent);
   font-size: 18px;
   font-weight: 800;
 }
@@ -472,7 +462,7 @@ main {
   align-self: flex-end;
   margin-top: 14px;
   background: var(--blue);
-  color: var(--mantle);
+  color: var(--on-accent);
 }
 
 .primary-button:hover {
@@ -556,7 +546,7 @@ main {
 
 .danger-button {
   background: var(--red);
-  color: var(--mantle);
+  color: var(--on-accent);
 }
 
 .danger-button:hover {
