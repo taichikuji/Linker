@@ -9,10 +9,13 @@ const backgroundSource = readFileSync(
   join(root, 'src/background/service-worker.js'),
   'utf8'
 );
-const popupSource = readFileSync(join(root, 'src/popup/popup.js'), 'utf8');
 
-function runBackground(apiNamespace) {
+function runBackground(apiNamespace, existingTabs = []) {
   const listeners = {};
+  const createdTabs = [];
+  const updatedTabs = [];
+  const sentMessages = [];
+  const focusedWindows = [];
   let resolveUpdate;
   const updated = new Promise(resolve => {
     resolveUpdate = resolve;
@@ -27,6 +30,7 @@ function runBackground(apiNamespace) {
       }
     },
     runtime: {
+      getURL: path => `moz-extension://linker/${path}`,
       onInstalled: {
         addListener: listener => {
           listeners.installed = listener;
@@ -35,6 +39,13 @@ function runBackground(apiNamespace) {
       onStartup: {
         addListener: listener => {
           listeners.startup = listener;
+        }
+      }
+    },
+    action: {
+      onClicked: {
+        addListener: listener => {
+          listeners.actionClicked = listener;
         }
       }
     },
@@ -54,6 +65,23 @@ function runBackground(apiNamespace) {
           listeners.storageChanged = listener;
         }
       }
+    },
+    tabs: {
+      query: async () => existingTabs,
+      create: async options => {
+        createdTabs.push(JSON.parse(JSON.stringify(options)));
+      },
+      update: async (id, options) => {
+        updatedTabs.push([id, JSON.parse(JSON.stringify(options))]);
+      },
+      sendMessage: async (id, message) => {
+        sentMessages.push([id, JSON.parse(JSON.stringify(message))]);
+      }
+    },
+    windows: {
+      update: async (id, options) => {
+        focusedWindows.push([id, JSON.parse(JSON.stringify(options))]);
+      }
     }
   };
 
@@ -64,53 +92,25 @@ function runBackground(apiNamespace) {
   });
   vm.runInContext(backgroundSource, context);
 
-  return { listeners, updated };
-}
-
-function runOpenImport(apiNamespace, search = '') {
-  let filePickerOpened = false;
-  let tabUrl;
-  const fileInput = {
-    click: () => {
-      filePickerOpened = true;
-    }
+  return {
+    listeners,
+    updated,
+    createdTabs,
+    updatedTabs,
+    sentMessages,
+    focusedWindows
   };
-  const api = {
-    declarativeNetRequest: { MAX_NUMBER_OF_REGEX_RULES: 1000 },
-    storage: { onChanged: { addListener() {} } },
-    tabs: {
-      create: ({ url }) => {
-        tabUrl = url;
-      }
-    }
-  };
-  const context = vm.createContext({
-    [apiNamespace]: api,
-    console,
-    document: {
-      addEventListener() {},
-      getElementById: id => id === 'import-file' ? fileInput : {}
-    },
-    location: {
-      href: `moz-extension://linker/src/popup/popup.html${search}`,
-      search
-    },
-    URL
-  });
-
-  vm.runInContext(popupSource, context);
-  vm.runInContext('openImport()', context);
-  return { filePickerOpened, tabUrl };
 }
 
 for (const apiNamespace of ['browser', 'chrome']) {
   test(`background initializes through the ${apiNamespace} API`, async () => {
-    const { listeners, updated } = runBackground(apiNamespace);
+    const { listeners, updated, createdTabs } = runBackground(apiNamespace);
     const update = await updated;
 
     assert.equal(typeof listeners.installed, 'function');
     assert.equal(typeof listeners.startup, 'function');
     assert.equal(typeof listeners.storageChanged, 'function');
+    assert.equal(typeof listeners.actionClicked, 'function');
     assert.deepEqual(update.removeRuleIds, [99]);
     assert.equal(update.addRules.length, 3);
 
@@ -136,21 +136,30 @@ for (const apiNamespace of ['browser', 'chrome']) {
       update.addRules[2].action.redirect.url,
       'https://github.com/taichikuji/Linker/issues'
     );
+
+    await listeners.actionClicked({ url: 'https://example.com/path?q=1' });
+    assert.deepEqual(createdTabs, [{
+      active: true,
+      url: 'moz-extension://linker/src/manager/manager.html#https%3A%2F%2Fexample.com%2Fpath%3Fq%3D1'
+    }]);
   });
 }
 
-test('Firefox opens imports outside the toolbar popup', () => {
-  const firefoxPopup = runOpenImport('browser');
-  const firefoxTab = runOpenImport('browser', '?import');
-  const chromiumPopup = runOpenImport('chrome');
+test('toolbar click focuses an existing Firefox manager tab', async () => {
+  const managerUrl = 'moz-extension://linker/src/manager/manager.html';
+  const result = runBackground('browser', [{
+    id: 7,
+    url: managerUrl,
+    windowId: 9
+  }]);
 
-  assert.equal(
-    firefoxPopup.tabUrl,
-    'moz-extension://linker/src/popup/popup.html?import'
-  );
-  assert.equal(firefoxPopup.filePickerOpened, false);
-  assert.equal(firefoxTab.filePickerOpened, true);
-  assert.equal(chromiumPopup.filePickerOpened, true);
+  await result.updated;
+  await result.listeners.actionClicked({});
+
+  assert.deepEqual(result.createdTabs, []);
+  assert.deepEqual(result.updatedTabs, [[7, { active: true }]]);
+  assert.deepEqual(result.focusedWindows, [[9, { focused: true }]]);
+  assert.deepEqual(result.sentMessages, [[7, { type: 'focus-search' }]]);
 });
 
 test('manifest declares Chromium and Firefox background contexts', () => {
@@ -165,6 +174,7 @@ test('manifest declares Chromium and Firefox background contexts', () => {
     manifest.background.scripts,
     ['src/background/service-worker.js']
   );
+  assert.equal(manifest.action.default_popup, undefined);
   assert.deepEqual(manifest.browser_specific_settings.gecko, {
     id: 'linker@taichikuji.github.io',
     strict_min_version: '133.0',
