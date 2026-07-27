@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="color-scheme" content="light dark">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Linker</title>
+  <link rel="stylesheet" href="manager.css">
+  <script defer src="manager.js"></script>
+</head>
+<body class="manager-view">
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="icon-help" viewBox="2 2 20 20">
+      <path d="M9.1 9a3 3 0 1 1 4.9 2.3c-1.2.9-2 1.4-2 2.7M12 17h.01M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" />
+    </symbol>
+    <symbol id="icon-import" viewBox="3 3 18 18">
+      <path d="M19 15v2a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-2M12 5v10m0 0-2-2m2 2 2-2" />
+    </symbol>
+    <symbol id="icon-export" viewBox="3 3 18 18">
+      <path d="M19 15v2a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-2M12 15V5m0 0 2 2m-2-2-2 2" />
+    </symbol>
+    <symbol id="icon-search" viewBox="2 2 20 20">
+      <path d="m20 20-4.35-4.35M18 11a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+    </symbol>
+    <symbol id="icon-external" viewBox="3 3 18 18">
+      <path d="M11 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.75M19 5h-4m4 0v4m0-4L9 15" />
+    </symbol>
+    <symbol id="icon-edit" viewBox="3 3 18 18">
+      <path d="m18.38 8.45-9.42 9.41a2 2 0 0 1-1.02.55L5 19l.59-2.94a2 2 0 0 1 .55-1.02l9.41-9.42m2.83 2.83 1.41-1.41a1 1 0 0 0 0-1.42l-1.41-1.41a1 1 0 0 0-1.42 0l-1.41 1.41m2.83 2.83-2.83-2.83" />
+    </symbol>
+    <symbol id="icon-delete" viewBox="2 2 20 20">
+      <path d="M10 11v6m4-6v6M4 7h16M6 7h12v11a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V7Zm3 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+    </symbol>
+    <symbol id="icon-close" viewBox="3 3 18 18">
+      <path d="m5 5 14 14m0-14L5 19" />
+    </symbol>
+  </svg>
+
+  <div class="manager-shell">
+    <header class="header">
+      <div class="brand">
+        <svg class="brand-mark" aria-hidden="true" viewBox="1 0 118 118" fill="currentColor">
+          <path d="M58 86.215h4a4 4 0 1 1 0 8h-4a4 4 0 1 1 0-8ZM37 73.927a6 6 0 1 0 0-12 6 6 0 0 0 0 12Zm46 0a6 6 0 1 1 0-12 6 6 0 0 1 0 12Z" />
+          <path fill-rule="evenodd" d="M60 24.927c-4.4 0-8.633.588-12.645 1.666-7.321-7.741-17.921-11.786-31.426-12.583-3.28-.194-5.952 2.504-5.895 5.79.23 13.169 1.599 21.777 6.064 30.884C2.27 74.4 9.958 105.927 60 105.927s57.73-31.527 43.902-55.243c4.465-9.107 5.834-17.715 6.064-30.885.057-3.285-2.615-5.983-5.895-5.79-13.505.798-24.105 4.843-31.426 12.584A48.67 48.67 0 0 0 60 24.927ZM19.096 63.924C23.37 48.182 39.609 32.927 60 32.927c20.391 0 36.63 15.255 40.904 30.997-1.656-2.428-3.424-4.604-5.306-6.43-4.796-4.654-10.865-7.463-17.747-5.399-3 .9-5.434 2.406-7.264 4.488-1.815 2.066-2.856 4.492-3.408 6.973-1.071 4.808-.408 10.323.446 15.2.35 1.996.723 3.86 1.076 5.621.578 2.886 1.1 5.495 1.37 7.948.186 1.683.497 3.512-.201 5.116-3.018.315-6.301.486-9.87.486-3.569 0-6.852-.171-9.87-.486-.698-1.604-.387-3.433-.202-5.116.27-2.454.793-5.062 1.37-7.948.354-1.76.727-3.625 1.077-5.62.854-4.878 1.517-10.394.446-15.2-.552-2.482-1.593-4.908-3.408-6.974-1.83-2.082-4.264-3.588-7.264-4.488-6.882-2.064-12.95.745-17.747 5.398-1.882 1.827-3.65 4.003-5.306 6.431Zm19.85-34.232c-4.992-4.035-11.801-6.609-20.852-7.49.278 8.838 1.2 15.034 3.412 20.883 4.682-5.474 10.61-10.155 17.44-13.393Zm2.856 66.385c-.086-1.523.006-3.097.174-4.627.304-2.757.953-6.021 1.584-9.191a221.3 221.3 0 0 0 .934-4.882c.846-4.827 1.215-8.957.519-12.081-.331-1.485-.874-2.595-1.61-3.432-.72-.82-1.802-1.581-3.552-2.106-3.118-.935-6.3.005-9.878 3.477C25.04 68.02 22.5 74 19.449 79.953c1.07 2.79 2.74 5.347 5.039 7.588 3.573 3.483 9.12 6.64 17.314 8.536Zm39.253-66.385c4.99-4.035 11.8-6.609 20.851-7.49-.278 8.838-1.2 15.034-3.413 20.883-4.681-5.474-10.61-10.155-17.438-13.393Zm-2.857 66.385c.086-1.523-.006-3.097-.174-4.627-.304-2.757-.953-6.021-1.584-9.191a221.3 221.3 0 0 1-.934-4.882c-.846-4.827-1.215-8.957-.519-12.081.331-1.485.874-2.595 1.61-3.432.72-.82 1.802-1.581 3.552-2.106 3.118-.935 6.3.005 9.878 3.477 4.933 4.785 7.473 10.692 10.524 16.718-1.07 2.79-2.74 5.347-5.039 7.588-3.573 3.483-9.12 6.64-17.314 8.536Z" clip-rule="evenodd" />
+        </svg>
+        <div>
+          <h1>Linker Manager</h1>
+          <p>Your shortcuts, one hop away</p>
+        </div>
+      </div>
+
+      <div class="header-actions" role="toolbar" aria-label="Manager actions">
+        <button id="btn-help" class="icon-button" type="button" title="Open help" aria-label="Open help"><svg class="ui-icon" aria-hidden="true"><use href="#icon-help"></use></svg></button>
+        <button id="btn-export" class="icon-button" type="button" title="Export JSON" aria-label="Export shortcuts"><svg class="ui-icon" aria-hidden="true"><use href="#icon-export"></use></svg></button>
+        <button id="btn-import" class="icon-button" type="button" title="Import JSON" aria-label="Import shortcuts"><svg class="ui-icon" aria-hidden="true"><use href="#icon-import"></use></svg></button>
+        <input id="import-file" class="visually-hidden" type="file" accept=".json,application/json">
+      </div>
+    </header>
+
+    <main class="manager-grid">
+      <section class="shortcut-panel" aria-label="Saved shortcuts">
+        <label class="search-field" for="search">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+          <input id="search" type="search" autocomplete="off" placeholder="Search shortcuts">
+        </label>
+
+        <p id="capacity-warning" class="capacity-warning" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+
+        <div class="shortcuts">
+          <ul id="item-list" class="shortcut-list"></ul>
+          <p id="empty-state" class="empty-state" hidden></p>
+        </div>
+      </section>
+
+      <section id="add-section" class="editor-panel" aria-labelledby="form-title">
+        <div class="editor-heading">
+          <p>Shortcut editor</p>
+          <h2 id="form-title">Add new shortcut</h2>
+        </div>
+        <div class="add-form">
+          <div class="field-label">
+            <label for="full-link">Destination URL</label>
+            <span id="variable-badge" class="variable-badge" hidden>Variable</span>
+          </div>
+          <input id="full-link" type="url" placeholder="https://example.com/items/{*}" spellcheck="false" aria-describedby="destination-hint">
+          <p id="destination-hint" class="field-hint">Add <code>{*}</code> where the trailing go link value should appear.</p>
+
+          <div id="fallback-field" class="conditional-field" hidden>
+            <label for="fallback-link">Default go link to</label>
+            <input id="fallback-link" type="url" placeholder="https://example.com/" spellcheck="false" aria-describedby="fallback-hint">
+            <p id="fallback-hint" class="field-hint">Used when no variable value is provided.</p>
+          </div>
+
+          <label for="go-link">Shortcut</label>
+          <div class="shortcut-field">
+            <span>go/</span>
+            <input id="go-link" type="text" maxlength="100" autocomplete="off" placeholder="shortcut" aria-describedby="shortcut-hint">
+          </div>
+          <p id="shortcut-hint" class="field-hint">No spaces or URL punctuation.</p>
+
+          <div class="form-actions">
+            <button id="cancel-edit" class="secondary-button" type="button" hidden>Cancel</button>
+            <button id="save" class="primary-button" type="button">Save shortcut</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite">
+    <span id="toast-message"></span>
+    <button id="toast-close" class="toast-close" type="button" aria-label="Dismiss notification"><svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
+  </div>
+
+  <div id="confirm-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="modal">
+      <p id="confirm-title"></p>
+      <div class="modal-actions">
+        <button id="confirm-cancel" class="secondary-button" type="button">Cancel</button>
+        <button id="confirm-ok" class="danger-button" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-delete"></use></svg>Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <template id="shortcut-template">
+    <li class="shortcut-item">
+      <button class="shortcut-open" type="button">
+        <span class="shortcut-icon" aria-hidden="true"></span>
+        <span class="shortcut-copy">
+          <span class="shortcut-heading">
+            <strong class="shortcut-name"></strong>
+            <span class="variable-badge" title="Parameterized shortcut" aria-label="Parameterized shortcut" hidden>VAR</span>
+          </span>
+          <span class="shortcut-url"></span>
+        </span>
+        <span class="open-indicator" aria-hidden="true"><svg class="ui-icon"><use href="#icon-external"></use></svg></span>
+      </button>
+      <div class="shortcut-actions">
+        <button class="shortcut-edit" type="button" title="Edit shortcut" aria-label="Edit shortcut"><svg class="ui-icon" aria-hidden="true"><use href="#icon-edit"></use></svg></button>
+        <button class="shortcut-delete" type="button" title="Delete shortcut" aria-label="Delete shortcut"><svg class="ui-icon" aria-hidden="true"><use href="#icon-delete"></use></svg></button>
+      </div>
+    </li>
+  </template>
+</body>
+</html>

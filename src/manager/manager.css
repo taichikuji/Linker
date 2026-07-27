@@ -27,26 +27,24 @@
   --blue: light-dark(#1e66f5, #89b4fa);
   --lavender: light-dark(#7287fd, #b4befe);
   --text: light-dark(#4c4f69, #cdd6f4);
-  --subtext0: light-dark(#6c6f85, #a6adc8);
+  --muted: light-dark(#6c6f85, #a6adc8);
   --surface1: light-dark(#bcc0cc, #45475a);
   --surface0: light-dark(#ccd0da, #313244);
   --base: light-dark(#eff1f5, #1e1e2e);
   --mantle: light-dark(#e6e9ef, #181825);
-
   --surface: light-dark(#ffffff, var(--surface0));
   --surface-hover: light-dark(var(--surface0), var(--surface1));
   --border: light-dark(var(--surface0), var(--surface1));
-  --muted: var(--subtext0);
   --on-accent: light-dark(#ffffff, var(--base));
   --focus-ring: light-dark(var(--blue), var(--lavender));
   --shadow: light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.3));
 }
 
 body {
-  width: 380px;
-  max-height: 600px;
+  min-width: 320px;
+  min-height: 100vh;
   margin: 0;
-  overflow: hidden;
+  padding: 24px;
   background: var(--base);
   color: var(--text);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -79,13 +77,24 @@ button {
   border: 0;
 }
 
+.manager-shell {
+  width: 100%;
+}
+
+.header,
+.shortcut-panel,
+.editor-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 18px 14px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  padding: 16px 18px;
 }
 
 .brand {
@@ -95,15 +104,11 @@ button {
 }
 
 .brand-mark {
-  display: grid;
   width: 34px;
   height: 34px;
-  place-items: center;
   border-radius: 10px;
   background: var(--blue);
   color: var(--on-accent);
-  font-size: 18px;
-  font-weight: 800;
 }
 
 .brand h1,
@@ -129,18 +134,19 @@ button {
 
 .icon-button,
 .toast-close,
+.shortcut-edit,
 .shortcut-delete {
   display: grid;
   place-items: center;
   border: 0;
   background: transparent;
-  color: var(--muted);
 }
 
 .icon-button {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 7px;
+  color: var(--muted);
 }
 
 .icon-button .ui-icon {
@@ -153,10 +159,18 @@ button {
   color: var(--text);
 }
 
-main {
-  display: flex;
-  max-height: 520px;
-  flex-direction: column;
+.manager-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  align-items: start;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.shortcut-panel,
+.editor-panel {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .search-field {
@@ -167,11 +181,12 @@ main {
   padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--base);
   color: var(--muted);
 }
 
-.search-field:focus-within {
+.search-field:focus-within,
+.shortcut-field:focus-within {
   border-color: var(--blue);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 18%, transparent);
 }
@@ -189,7 +204,7 @@ main {
   color: var(--muted);
 }
 
-.search-field > .ui-icon {
+.search-field .ui-icon {
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
@@ -210,13 +225,14 @@ main {
   background: color-mix(in srgb, var(--red) 10%, transparent);
 }
 
-.capacity-warning[hidden] {
+.capacity-warning[hidden],
+.conditional-field[hidden],
+.variable-badge[hidden] {
   display: none;
 }
 
 .shortcuts {
-  min-height: 70px;
-  overflow-y: auto;
+  min-height: 180px;
 }
 
 .shortcut-list {
@@ -243,7 +259,7 @@ main {
   flex: 1;
   align-items: center;
   gap: 11px;
-  padding: 9px 42px 9px 10px;
+  padding: 9px 88px 9px 10px;
   border: 0;
   background: transparent;
   color: var(--text);
@@ -294,6 +310,17 @@ main {
   font-size: 11px;
 }
 
+.variable-badge {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--blue) 16%, transparent);
+  color: var(--blue);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .open-indicator {
   display: grid;
   place-items: center;
@@ -306,26 +333,46 @@ main {
   height: 14px;
 }
 
-.shortcut-delete {
+.shortcut-actions {
   position: absolute;
   right: 8px;
-  width: 28px;
-  height: 28px;
+  display: flex;
+  gap: 2px;
+}
+
+.shortcut-edit,
+.shortcut-delete {
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  color: var(--red);
   opacity: 0;
 }
 
+.shortcut-edit {
+  color: var(--blue);
+}
+
+.shortcut-delete {
+  color: var(--red);
+}
+
+.shortcut-edit .ui-icon,
 .shortcut-delete .ui-icon {
   width: 16px;
   height: 16px;
 }
 
+.shortcut-item:hover .shortcut-edit,
 .shortcut-item:hover .shortcut-delete,
-.shortcut-delete:focus-visible,
 .shortcut-item:hover .open-indicator,
+.shortcut-edit:focus-visible,
+.shortcut-delete:focus-visible,
 .shortcut-open:focus-visible .open-indicator {
   opacity: 1;
+}
+
+.shortcut-edit:hover {
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
 }
 
 .shortcut-delete:hover {
@@ -334,68 +381,41 @@ main {
 
 .empty-state {
   margin: 0;
-  padding: 20px;
+  padding: 28px 20px;
   color: var(--muted);
   text-align: center;
 }
 
-.add-section {
-  flex: 0 0 auto;
-  border-top: 1px solid var(--border);
-  background: var(--surface);
+.editor-heading {
+  padding: 18px 18px 0;
 }
 
-.add-section[open] {
-  max-height: 385px;
-  overflow-y: auto;
+.editor-heading p,
+.editor-heading h2 {
+  margin: 0;
 }
 
-.add-section summary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px 18px;
-  cursor: pointer;
-  font-weight: 600;
-  list-style: none;
+.editor-heading p {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.add-section summary::-webkit-details-marker {
-  display: none;
-}
-
-.add-section summary:hover {
-  background: var(--surface-hover);
-}
-
-.summary-icon {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--mantle);
-  color: var(--blue);
-  transition: transform 0.2s ease;
-}
-
-.summary-icon .ui-icon {
-  width: 14px;
-  height: 14px;
-}
-
-.add-section[open] .summary-icon {
-  transform: rotate(45deg);
+.editor-heading h2 {
+  margin-top: 4px;
+  font-size: 17px;
 }
 
 .add-form {
   display: flex;
   flex-direction: column;
-  padding: 2px 18px 16px;
+  padding: 4px 18px 18px;
 }
 
 .add-form label {
-  margin: 10px 0 6px;
+  margin: 12px 0 6px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 600;
@@ -407,22 +427,11 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 10px 0 6px;
+  margin-top: 10px;
 }
 
 .field-label label {
   margin: 0;
-}
-
-.variable-badge {
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--blue) 16%, transparent);
-  color: var(--blue);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .conditional-field {
@@ -430,12 +439,8 @@ main {
   flex-direction: column;
 }
 
-.conditional-field[hidden],
-.variable-badge[hidden] {
-  display: none;
-}
-
-.add-form input,
+.add-form > input,
+.conditional-field input,
 .shortcut-field {
   width: 100%;
   border: 1px solid var(--border);
@@ -470,10 +475,8 @@ main {
   padding: 9px 10px 9px 2px;
   border: 0;
   outline: 0;
-}
-
-.shortcut-field:focus-within {
-  border-color: var(--blue);
+  background: transparent;
+  color: var(--text);
 }
 
 .field-hint {
@@ -485,6 +488,17 @@ main {
 .field-hint code {
   color: var(--blue);
   font-weight: 700;
+}
+
+.form-actions,
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.form-actions {
+  margin-top: 16px;
 }
 
 .primary-button,
@@ -502,20 +516,34 @@ main {
 }
 
 .primary-button {
-  align-self: flex-end;
-  margin-top: 14px;
   color: var(--blue);
+}
+
+.secondary-button {
+  color: var(--text);
+}
+
+.danger-button {
+  color: var(--red);
 }
 
 .primary-button:hover {
   background: color-mix(in srgb, var(--blue) 12%, transparent);
 }
 
+.secondary-button:hover {
+  background: var(--surface-hover);
+}
+
+.danger-button:hover {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+
 .toast {
   position: fixed;
-  right: 12px;
-  bottom: 12px;
-  left: 12px;
+  right: max(20px, calc((100vw - 720px) / 2));
+  bottom: 20px;
+  left: max(20px, calc((100vw - 720px) / 2));
   z-index: 20;
   display: flex;
   align-items: center;
@@ -566,7 +594,7 @@ main {
 }
 
 .modal {
-  width: 100%;
+  width: min(420px, 100%);
   padding: 20px;
   border: 1px solid var(--border);
   border-radius: 9px;
@@ -579,26 +607,32 @@ main {
   font-weight: 600;
 }
 
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+@media (max-width: 850px) {
+  .manager-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.secondary-button {
-  color: var(--text);
+@media (max-width: 600px) {
+  body {
+    padding: 12px;
+  }
+
+  .header {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .brand p {
+    display: none;
+  }
 }
 
-.secondary-button:hover {
-  background: var(--surface-hover);
-}
-
-.danger-button {
-  color: var(--red);
-}
-
-.danger-button:hover {
-  background: color-mix(in srgb, var(--red) 12%, transparent);
+@media (hover: none) {
+  .shortcut-edit,
+  .shortcut-delete {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
