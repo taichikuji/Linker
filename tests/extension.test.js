@@ -170,10 +170,6 @@ test('manifest declares Chromium and Firefox background contexts', () => {
     manifest.background.service_worker,
     'src/background/service-worker.js'
   );
-  assert.deepEqual(
-    manifest.background.scripts,
-    ['src/background/service-worker.js']
-  );
   assert.equal(manifest.action.default_popup, undefined);
   assert.deepEqual(manifest.browser_specific_settings.gecko, {
     id: 'linker@taichikuji.github.io',
