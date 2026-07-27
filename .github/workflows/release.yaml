@@ -34,7 +34,13 @@ jobs:
 
       - name: Create browser ZIPs
         run: |
-          zip -r "Linker_${{ steps.version.outputs.VERSION }}.chromium.zip" . -x "*.git*" ".github/*" "README.md" "tests/*"
+          zip -r "Linker_${{ steps.version.outputs.VERSION }}.chromium.zip" \
+            manifest.json \
+            src \
+            assets/icon_16.png \
+            assets/icon_32.png \
+            assets/icon_48.png \
+            assets/icon_128.png
           cp "Linker_${{ steps.version.outputs.VERSION }}.chromium.zip" "Linker_${{ steps.version.outputs.VERSION }}.firefox.zip"
 
       - name: Upload artifacts
