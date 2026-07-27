@@ -4,19 +4,33 @@ A small browser extension for creating personal URL shortcuts.
 
 ## Installation
 
-1. Open your browser's extensions page.
-2. Enable developer mode.
-3. Choose **Load unpacked** and select this directory.
+Linker supports Chromium 121 or newer and Firefox 133 or newer.
 
-To keep Linker visible in the browser toolbar, open the browser's extensions
-menu and pin Linker. Toolbar placement is controlled by the browser.
+- **Chromium:** Open `chrome://extensions`, enable developer mode, choose
+  **Load unpacked**, and select this directory.
+- **Firefox:** Open `about:debugging#/runtime/this-firefox`, choose
+  **Load Temporary Add-on**, and select `manifest.json`.
 
-Linker uses Manifest V3 and requires support for dynamic declarative network
-request rules.
+Open the browser's extensions menu to pin Linker to the toolbar. Firefox
+temporary add-ons must be loaded again after restarting the browser; permanent
+installation requires a signed package.
 
 ## Tag versioning workflow
 
 For the workflow on how to generate and push new releases with tags, read [GUIDE.md](.github/workflows/GUIDE.md)
+
+## Testing
+
+Run the zero-dependency test suite with Node.js 20 or newer:
+
+```bash
+node --test
+```
+
+The tests execute the real background script with both Firefox's `browser` API
+and Chromium's `chrome` API. Before releasing, also load the extension in both
+browsers, create direct and parameterized shortcuts, verify both redirect, then
+restart each browser and verify the redirects again.
 
 ## Description
 
