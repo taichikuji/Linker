@@ -23,7 +23,6 @@
     "extension_pages": "script-src 'self'; object-src 'none'"
   },
   "action": {
-    "default_popup": "src/popup/popup.html",
     "default_title": "Click to Go/Link",
     "default_icon": {
       "16": "assets/icon_16.png",
