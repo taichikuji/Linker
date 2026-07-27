@@ -278,11 +278,6 @@ button {
   font-weight: 700;
 }
 
-.shortcut-icon img {
-  width: 18px;
-  height: 18px;
-}
-
 .shortcut-copy {
   display: flex;
   min-width: 0;
