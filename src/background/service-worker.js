@@ -1,5 +1,6 @@
 // Constants and Configuration
 const CONFIG = {
+  MANAGER_PATH: 'src/manager/manager.html',
   STORAGE_NAMESPACE: 'sync',
   ALLOWED_PROTOCOLS: ['http:', 'https:'],
   RESOURCE_TYPES: ['main_frame'],
@@ -8,6 +9,7 @@ const CONFIG = {
 
 const browserApi = globalThis.browser ?? globalThis.chrome;
 const MAX_REGEX_RULES = browserApi.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
+const MANAGER_URL = browserApi.runtime.getURL(CONFIG.MANAGER_PATH);
 let ruleSyncQueue = Promise.resolve();
 
 /**
@@ -139,8 +141,31 @@ function scheduleRuleUpdate() {
   return next;
 }
 
+async function openManager(sourceTab) {
+  try {
+    const tabs = await browserApi.tabs.query({});
+    const existing = tabs.find(tab => tab.url?.startsWith(MANAGER_URL));
+
+    if (existing) {
+      await browserApi.tabs.update(existing.id, { active: true });
+      if (browserApi.windows && existing.windowId !== undefined) {
+        await browserApi.windows.update(existing.windowId, { focused: true });
+      }
+      await browserApi.tabs.sendMessage(existing.id, { type: 'focus-search' }).catch(() => {});
+      return;
+    }
+
+    const sourceUrl = isValidTargetUrl(sourceTab?.url) ? sourceTab.url : '';
+    const url = sourceUrl ? `${MANAGER_URL}#${encodeURIComponent(sourceUrl)}` : MANAGER_URL;
+    await browserApi.tabs.create({ active: true, url });
+  } catch (error) {
+    console.error('Error opening manager:', error);
+  }
+}
+
 browserApi.runtime.onInstalled.addListener(scheduleRuleUpdate);
 browserApi.runtime.onStartup.addListener(scheduleRuleUpdate);
+browserApi.action.onClicked.addListener(openManager);
 
 browserApi.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === CONFIG.STORAGE_NAMESPACE && Object.keys(changes).length > 0) {

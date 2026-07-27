@@ -1,4 +1,3 @@
-// Constants and Configuration
 const CONFIG = {
   HELP_URL: 'https://github.com/taichikuji/Linker#user-guide',
   MAX_SHORTCUT_LENGTH: 100,
@@ -12,26 +11,27 @@ const browserApi = globalThis.browser ?? globalThis.chrome;
 const MAX_REGEX_RULES = browserApi.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
 const REGEX_RULE_WARNING_THRESHOLD = Math.max(0, MAX_REGEX_RULES - 100);
 
-// State Management
 const state = {
   entries: {},
+  editingShortcut: null,
   toastTimeout: null,
   pendingConfirmation: null
 };
 
-// DOM Elements
 const elements = {
   search: document.getElementById('search'),
   capacityWarning: document.getElementById('capacity-warning'),
   itemList: document.getElementById('item-list'),
   emptyState: document.getElementById('empty-state'),
   addSection: document.getElementById('add-section'),
+  formTitle: document.getElementById('form-title'),
   shortcutInput: document.getElementById('go-link'),
   urlInput: document.getElementById('full-link'),
   variableBadge: document.getElementById('variable-badge'),
   fallbackField: document.getElementById('fallback-field'),
   fallbackInput: document.getElementById('fallback-link'),
   saveButton: document.getElementById('save'),
+  cancelEditButton: document.getElementById('cancel-edit'),
   helpButton: document.getElementById('btn-help'),
   importButton: document.getElementById('btn-import'),
   fileInput: document.getElementById('import-file'),
@@ -49,48 +49,66 @@ const elements = {
 document.addEventListener('DOMContentLoaded', initialize);
 
 browserApi.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'sync' && Object.keys(changes).length > 0) {
-    loadEntries();
-  }
+  if (namespace === 'sync' && Object.keys(changes).length > 0) loadEntries();
+});
+
+browserApi.runtime.onMessage.addListener(message => {
+  if (message?.type === 'focus-search') focusSearch();
 });
 
 async function initialize() {
   setupEventListeners();
-  await Promise.all([loadEntries(), populateCurrentTabUrl()]);
+  const sourceUrl = consumeSourceUrl();
+  await loadEntries();
+
+  if (sourceUrl) {
+    elements.urlInput.value = sourceUrl;
+  }
+
   updateVariableFields();
+  focusSearch();
+}
+
+function focusSearch() {
+  elements.search.focus();
+  elements.search.select();
 }
 
 function setupEventListeners() {
   elements.search.addEventListener('input', renderEntries);
-  elements.shortcutInput.addEventListener('input', updateSaveButton);
+  elements.search.addEventListener('keydown', event => {
+    if (event.key === 'Enter') elements.itemList.querySelector('.shortcut-open')?.click();
+  });
   elements.urlInput.addEventListener('input', updateVariableFields);
   elements.saveButton.addEventListener('click', saveShortcut);
+  elements.cancelEditButton.addEventListener('click', resetForm);
   elements.helpButton.addEventListener('click', openHelp);
-  elements.importButton.addEventListener('click', openImport);
+  elements.importButton.addEventListener('click', () => elements.fileInput.click());
   elements.fileInput.addEventListener('change', importShortcuts);
   elements.exportButton.addEventListener('click', exportShortcuts);
   elements.toastClose.addEventListener('click', hideToast);
 }
 
-function openImport() {
-  if (globalThis.browser && location.search !== '?import') {
-    browserApi.tabs.create({ url: new URL('?import', location.href).href });
-    return;
-  }
+function consumeSourceUrl() {
+  if (!location.hash) return '';
 
-  elements.fileInput.click();
+  try {
+    const sourceUrl = decodeURIComponent(location.hash.slice(1));
+    history.replaceState(null, '', location.pathname);
+    return isValidTargetUrl(sourceUrl) ? sourceUrl : '';
+  } catch {
+    history.replaceState(null, '', location.pathname);
+    return '';
+  }
 }
 
 function isStoredEntry(value) {
-  if (!value || typeof value !== 'object' || !isValidTargetUrl(value.url)) {
-    return false;
-  }
-
-  if (hasVariable(value.url) && !isValidTargetUrl(value.fallbackUrl)) {
-    return false;
-  }
-
-  return true;
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && isValidTargetUrl(value.url)
+    && (!hasVariable(value.url) || isValidTargetUrl(value.fallbackUrl))
+  );
 }
 
 function isValidShortcut(shortcut) {
@@ -127,7 +145,7 @@ function updateCapacityWarning() {
 
   if (ruleCount > MAX_REGEX_RULES) {
     type = 'error';
-    message = `Browser limit exceeded: ${ruleCount}/${MAX_REGEX_RULES} redirect rules. Recent synced changes are inactive; delete shortcuts to restore routing.`;
+    message = `Browser limit exceeded: ${ruleCount}/${MAX_REGEX_RULES} redirect rules. Delete shortcuts to restore routing.`;
   } else if (ruleCount === MAX_REGEX_RULES) {
     type = 'error';
     message = `Browser limit reached: ${ruleCount}/${MAX_REGEX_RULES} redirect rules. Delete a shortcut before adding another.`;
@@ -147,7 +165,6 @@ async function loadEntries() {
       Object.entries(stored).filter(([, value]) => isStoredEntry(value))
     );
     renderEntries();
-    updateSaveButton();
     updateCapacityWarning();
   } catch (error) {
     console.error('Error loading shortcuts:', error);
@@ -159,20 +176,16 @@ function renderEntries() {
   const query = elements.search.value.trim().toLocaleLowerCase();
   const entries = Object.entries(state.entries)
     .sort(([left], [right]) => left.localeCompare(right))
-    .filter(([shortcut, value]) => {
-      const searchableText = [
-        shortcut,
-        value.url,
-        value.fallbackUrl
-      ].filter(Boolean).join(' ').toLocaleLowerCase();
-      return searchableText.includes(query);
-    });
+    .filter(([shortcut, value]) => [
+      shortcut,
+      value.url,
+      value.fallbackUrl
+    ].filter(Boolean).join(' ').toLocaleLowerCase().includes(query));
 
   elements.itemList.replaceChildren();
 
   if (entries.length === 0) {
-    const hasShortcuts = Object.keys(state.entries).length > 0;
-    elements.emptyState.textContent = hasShortcuts
+    elements.emptyState.textContent = Object.keys(state.entries).length > 0
       ? 'No shortcuts match your search.'
       : 'No shortcuts yet. Add your first one below.';
     elements.emptyState.hidden = false;
@@ -188,15 +201,15 @@ function renderEntries() {
 function createEntry([shortcut, value]) {
   const row = elements.entryTemplate.content.firstElementChild.cloneNode(true);
   const openButton = row.querySelector('.shortcut-open');
+  const editButton = row.querySelector('.shortcut-edit');
   const deleteButton = row.querySelector('.shortcut-delete');
   const parameterized = hasVariable(value.url);
   const openUrl = parameterized ? value.fallbackUrl : value.url;
-  const targetLabel = getTargetLabel(openUrl);
 
   row.querySelector('.shortcut-icon').textContent = shortcut.charAt(0).toLocaleUpperCase();
   row.querySelector('.shortcut-name').textContent = `go/${shortcut}`;
   row.querySelector('.variable-badge').hidden = !parameterized;
-  row.querySelector('.shortcut-url').textContent = targetLabel;
+  row.querySelector('.shortcut-url').textContent = getTargetLabel(openUrl);
   openButton.setAttribute(
     'aria-label',
     `Open ${parameterized ? 'parameterized shortcut ' : ''}go/${shortcut}: ${openUrl}`
@@ -204,6 +217,8 @@ function createEntry([shortcut, value]) {
   openButton.title = openUrl;
   openButton.addEventListener('click', () => openShortcut(openUrl));
 
+  editButton.setAttribute('aria-label', `Edit go/${shortcut}`);
+  editButton.addEventListener('click', () => startEditing(shortcut));
   deleteButton.setAttribute('aria-label', `Delete go/${shortcut}`);
   deleteButton.addEventListener('click', () => deleteShortcut(shortcut));
 
@@ -219,21 +234,161 @@ function getTargetLabel(url) {
   }
 }
 
+function startEditing(shortcut) {
+  const entry = state.entries[shortcut];
+  if (!entry) return;
+
+  state.editingShortcut = shortcut;
+  elements.shortcutInput.value = shortcut;
+  elements.urlInput.value = entry.url;
+  elements.fallbackInput.value = entry.fallbackUrl ?? '';
+  elements.formTitle.textContent = `Edit go/${shortcut}`;
+  elements.saveButton.textContent = 'Save changes';
+  elements.cancelEditButton.hidden = false;
+  updateVariableFields();
+  elements.urlInput.focus();
+  elements.addSection.scrollIntoView({ block: 'nearest' });
+}
+
+function resetForm() {
+  state.editingShortcut = null;
+  elements.shortcutInput.value = '';
+  elements.urlInput.value = '';
+  elements.fallbackInput.value = '';
+  elements.formTitle.textContent = 'Add new shortcut';
+  elements.saveButton.textContent = 'Save shortcut';
+  elements.cancelEditButton.hidden = true;
+  updateVariableFields();
+}
+
+function updateVariableFields() {
+  const parameterized = hasVariable(elements.urlInput.value);
+  elements.variableBadge.hidden = !parameterized;
+  elements.fallbackField.hidden = !parameterized;
+  elements.fallbackInput.disabled = !parameterized;
+  elements.fallbackInput.required = parameterized;
+}
+
+async function saveShortcut() {
+  const originalShortcut = state.editingShortcut;
+  const shortcut = elements.shortcutInput.value.trim();
+  const url = elements.urlInput.value.trim();
+  const fallbackUrl = elements.fallbackInput.value.trim();
+
+  if (!isValidShortcut(shortcut)) {
+    showToast('Use a shortcut without spaces or URL punctuation.', 'error');
+    elements.shortcutInput.focus();
+    return;
+  }
+
+  if (state.entries[shortcut] && shortcut !== originalShortcut) {
+    showToast(`go/${shortcut} already exists. Edit that shortcut instead.`, 'error');
+    elements.shortcutInput.focus();
+    return;
+  }
+
+  if (!isValidTargetUrl(url)) {
+    showToast('Enter a valid http or https URL.', 'error');
+    elements.urlInput.focus();
+    return;
+  }
+
+  if (hasVariable(url) && !isValidTargetUrl(fallbackUrl)) {
+    showToast('Enter a valid default URL for an empty variable.', 'error');
+    elements.fallbackInput.focus();
+    return;
+  }
+
+  const entry = { url };
+  if (hasVariable(url)) entry.fallbackUrl = fallbackUrl;
+
+  const nextEntries = { ...state.entries };
+  if (originalShortcut && originalShortcut !== shortcut) delete nextEntries[originalShortcut];
+  nextEntries[shortcut] = entry;
+
+  if (countRedirectRules(nextEntries) > MAX_REGEX_RULES) {
+    showToast(`Cannot save: browser limit is ${MAX_REGEX_RULES} redirect rules.`, 'error');
+    return;
+  }
+
+  try {
+    await browserApi.storage.sync.set({ [shortcut]: entry });
+    if (originalShortcut && originalShortcut !== shortcut) {
+      await browserApi.storage.sync.remove(originalShortcut);
+    }
+
+    state.entries = nextEntries;
+    renderEntries();
+    updateCapacityWarning();
+    resetForm();
+    showToast(`${originalShortcut ? 'Updated' : 'Saved'} go/${shortcut}.`, 'success');
+  } catch (error) {
+    console.error('Error saving shortcut:', error);
+    await loadEntries();
+    showToast('Could not save the shortcut. Sync storage may be full.', 'error');
+  }
+}
+
+async function openShortcut(url) {
+  try {
+    await browserApi.tabs.create({ active: true, url });
+  } catch (error) {
+    console.error('Error opening shortcut:', error);
+    showToast('Could not open the shortcut.', 'error');
+  }
+}
+
+async function deleteShortcut(shortcut) {
+  const confirmed = await showConfirmModal(`Delete go/${shortcut}?`);
+  if (!confirmed) return;
+
+  try {
+    await browserApi.storage.sync.remove(shortcut);
+    delete state.entries[shortcut];
+    if (state.editingShortcut === shortcut) resetForm();
+    renderEntries();
+    updateCapacityWarning();
+    showToast(`Deleted go/${shortcut}.`, 'success');
+  } catch (error) {
+    console.error('Error deleting shortcut:', error);
+    showToast('Could not delete the shortcut.', 'error');
+  }
+}
+
+async function openHelp() {
+  try {
+    await browserApi.tabs.create({ active: true, url: CONFIG.HELP_URL });
+  } catch (error) {
+    console.error('Error opening help:', error);
+    showToast('Could not open the help page.', 'error');
+  }
+}
+
 function createExportData(entries) {
   return Object.fromEntries(
     Object.entries(entries).map(([shortcut, value]) => {
-      const exportedValue = { url: value.url };
-
-      if (hasVariable(value.url)) {
-        exportedValue.fallbackUrl = value.fallbackUrl;
-      }
-
-      return [
-        shortcut,
-        Object.keys(exportedValue).length === 1 ? value.url : exportedValue
-      ];
+      if (!hasVariable(value.url)) return [shortcut, value.url];
+      return [shortcut, { url: value.url, fallbackUrl: value.fallbackUrl }];
     })
   );
+}
+
+function exportShortcuts() {
+  try {
+    const blob = new Blob([JSON.stringify(createExportData(state.entries), null, 2)], {
+      type: 'application/json'
+    });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = `linker-export-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    showToast('Exported your shortcuts.', 'success');
+  } catch (error) {
+    console.error('Error exporting shortcuts:', error);
+    showToast('Could not export your shortcuts.', 'error');
+  }
 }
 
 function parseImportData(parsed) {
@@ -260,7 +415,6 @@ function parseImportData(parsed) {
 
     const entry = { url };
     if (hasVariable(url)) entry.fallbackUrl = fallbackUrl;
-
     return [[shortcut, entry]];
   });
 
@@ -275,144 +429,6 @@ function parseImportData(parsed) {
   };
 }
 
-async function populateCurrentTabUrl() {
-  try {
-    const [tab] = await browserApi.tabs.query({
-      active: true,
-      currentWindow: true,
-      lastFocusedWindow: true
-    });
-    if (tab?.url) elements.urlInput.value = tab.url;
-  } catch (error) {
-    console.error('Error reading the active tab:', error);
-  }
-}
-
-function updateSaveButton() {
-  const shortcut = elements.shortcutInput.value.trim();
-  elements.saveButton.textContent = state.entries[shortcut] ? 'Overwrite' : 'Save shortcut';
-}
-
-function updateVariableFields() {
-  const parameterized = hasVariable(elements.urlInput.value);
-  elements.variableBadge.hidden = !parameterized;
-  elements.fallbackField.hidden = !parameterized;
-  elements.fallbackInput.disabled = !parameterized;
-  elements.fallbackInput.required = parameterized;
-}
-
-async function saveShortcut() {
-  const shortcut = elements.shortcutInput.value.trim();
-  const url = elements.urlInput.value.trim();
-  const fallbackUrl = elements.fallbackInput.value.trim();
-
-  if (!isValidShortcut(shortcut)) {
-    showToast('Use a shortcut without spaces or URL punctuation.', 'error');
-    elements.shortcutInput.focus();
-    return;
-  }
-
-  if (!isValidTargetUrl(url)) {
-    showToast('Enter a valid http or https URL.', 'error');
-    elements.urlInput.focus();
-    return;
-  }
-
-  if (hasVariable(url) && !isValidTargetUrl(fallbackUrl)) {
-    showToast('Enter a valid default URL for an empty variable.', 'error');
-    elements.fallbackInput.focus();
-    return;
-  }
-
-  const entry = { url };
-  if (hasVariable(url)) entry.fallbackUrl = fallbackUrl;
-
-  const nextEntries = { ...state.entries, [shortcut]: entry };
-  const nextRuleCount = countRedirectRules(nextEntries);
-
-  if (nextRuleCount > MAX_REGEX_RULES) {
-    showToast(
-      `Cannot save: ${nextRuleCount} redirect rules exceed the browser limit of ${MAX_REGEX_RULES}.`,
-      'error'
-    );
-    return;
-  }
-
-  try {
-    await browserApi.storage.sync.set({
-      [shortcut]: entry
-    });
-    state.entries[shortcut] = entry;
-    renderEntries();
-    updateSaveButton();
-    updateCapacityWarning();
-    showToast(`Saved go/${shortcut}.`, 'success');
-  } catch (error) {
-    console.error('Error saving shortcut:', error);
-    showToast('Could not save the shortcut. Sync storage may be full.', 'error');
-  }
-}
-
-async function openShortcut(url) {
-  if (!isValidTargetUrl(url)) {
-    showToast('This saved shortcut has an invalid URL.', 'error');
-    return;
-  }
-
-  try {
-    await browserApi.tabs.create({ active: true, url });
-  } catch (error) {
-    console.error('Error opening shortcut:', error);
-    showToast('Could not open the shortcut.', 'error');
-  }
-}
-
-async function deleteShortcut(shortcut) {
-  const confirmed = await showConfirmModal(`Delete go/${shortcut}?`);
-  if (!confirmed) return;
-
-  try {
-    await browserApi.storage.sync.remove(shortcut);
-    delete state.entries[shortcut];
-    renderEntries();
-    updateSaveButton();
-    updateCapacityWarning();
-    showToast(`Deleted go/${shortcut}.`, 'success');
-  } catch (error) {
-    console.error('Error deleting shortcut:', error);
-    showToast('Could not delete the shortcut.', 'error');
-  }
-}
-
-async function openHelp() {
-  try {
-    await browserApi.tabs.create({ active: true, url: CONFIG.HELP_URL });
-  } catch (error) {
-    console.error('Error opening help:', error);
-    showToast('Could not open the help page.', 'error');
-  }
-}
-
-function exportShortcuts() {
-  try {
-    const exportData = createExportData(state.entries);
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: 'application/json'
-    });
-    const objectUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = objectUrl;
-    const dateStr = new Date().toISOString().slice(0, 10);
-    anchor.download = `linker-export-${dateStr}.json`;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
-    showToast('Exported your shortcuts.', 'success');
-  } catch (error) {
-    console.error('Error exporting shortcuts:', error);
-    showToast('Could not export your shortcuts.', 'error');
-  }
-}
-
 async function importShortcuts(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -422,21 +438,16 @@ async function importShortcuts(event) {
       throw new Error('Import file is larger than 1 MB.');
     }
 
-    const parsed = JSON.parse(await file.text());
-    const imported = parseImportData(parsed);
+    const imported = parseImportData(JSON.parse(await file.text()));
     const nextEntries = { ...state.entries, ...imported.entries };
-    const nextRuleCount = countRedirectRules(nextEntries);
 
-    if (nextRuleCount > MAX_REGEX_RULES) {
-      throw new Error(
-        `Import would generate ${nextRuleCount} redirect rules; browser limit is ${MAX_REGEX_RULES}.`
-      );
+    if (countRedirectRules(nextEntries) > MAX_REGEX_RULES) {
+      throw new Error(`Import exceeds the browser limit of ${MAX_REGEX_RULES} redirect rules.`);
     }
 
     await browserApi.storage.sync.set(imported.entries);
     state.entries = nextEntries;
     renderEntries();
-    updateSaveButton();
     updateCapacityWarning();
 
     const suffix = imported.skippedCount > 0
