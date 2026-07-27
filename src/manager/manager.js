@@ -202,8 +202,14 @@ function createEntry([shortcut, value]) {
   const deleteButton = row.querySelector('.shortcut-delete');
   const parameterized = hasVariable(value.url);
   const openUrl = parameterized ? value.fallbackUrl : value.url;
+  const shortcutIcon = row.querySelector('.shortcut-icon');
+  const favicon = document.createElement('img');
 
-  row.querySelector('.shortcut-icon').textContent = shortcut.charAt(0).toLocaleUpperCase();
+  shortcutIcon.textContent = shortcut.charAt(0).toLocaleUpperCase();
+  favicon.alt = '';
+  favicon.referrerPolicy = 'no-referrer';
+  favicon.addEventListener('load', () => shortcutIcon.replaceChildren(favicon), { once: true });
+  favicon.src = new URL('/favicon.ico', openUrl).href;
   row.querySelector('.shortcut-name').textContent = `go/${shortcut}`;
   row.querySelector('.variable-badge').hidden = !parameterized;
   row.querySelector('.shortcut-url').textContent = getTargetLabel(openUrl);
