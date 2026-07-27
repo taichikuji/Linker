@@ -52,6 +52,10 @@ browserApi.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'sync' && Object.keys(changes).length > 0) loadEntries();
 });
 
+browserApi.runtime.onMessage.addListener(message => {
+  if (message?.type === 'focus-search') focusSearch();
+});
+
 async function initialize() {
   setupEventListeners();
   const sourceUrl = consumeSourceUrl();
@@ -62,6 +66,12 @@ async function initialize() {
   }
 
   updateVariableFields();
+  focusSearch();
+}
+
+function focusSearch() {
+  elements.search.focus();
+  elements.search.select();
 }
 
 function setupEventListeners() {

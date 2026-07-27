@@ -151,6 +151,7 @@ async function openManager(sourceTab) {
       if (browserApi.windows && existing.windowId !== undefined) {
         await browserApi.windows.update(existing.windowId, { focused: true });
       }
+      await browserApi.tabs.sendMessage(existing.id, { type: 'focus-search' }).catch(() => {});
       return;
     }
 
