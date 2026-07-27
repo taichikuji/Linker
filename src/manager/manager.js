@@ -76,6 +76,9 @@ function focusSearch() {
 
 function setupEventListeners() {
   elements.search.addEventListener('input', renderEntries);
+  elements.search.addEventListener('keydown', event => {
+    if (event.key === 'Enter') elements.itemList.querySelector('.shortcut-open')?.click();
+  });
   elements.urlInput.addEventListener('input', updateVariableFields);
   elements.saveButton.addEventListener('click', saveShortcut);
   elements.cancelEditButton.addEventListener('click', resetForm);
