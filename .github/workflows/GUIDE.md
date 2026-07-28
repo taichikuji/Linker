@@ -25,9 +25,10 @@ git push origin vX.Y.Z
 
 The push will trigger a workflow visible in the [Actions](https://github.com/taichikuji/Linker/actions) tab. The workflow will automatically:
 
-* Run the cross-browser unit tests.
+* Run the browser unit tests.
 * Parse the version number.
-* Package the universal extension as Chromium and Firefox `.zip` archives.
+* Package the primary Chromium extension and a Firefox build for Mozilla
+  distribution.
 * Upload both archives as one workflow artifact.
 
 ### 4. Verification
@@ -37,5 +38,5 @@ Once the Action completes successfully, verify that both
 new automated GitHub Release here:
 [https://github.com/taichikuji/Linker/releases](https://github.com/taichikuji/Linker/releases)
 
-The packages contain the same cross-browser manifest. The Firefox archive still
-requires Mozilla signing before permanent distribution.
+The packages share the same source code but contain browser-specific manifests.
+Submit the Firefox archive to Mozilla for signing and publication.

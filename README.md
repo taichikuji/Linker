@@ -4,12 +4,13 @@ A small browser extension for creating personal URL shortcuts.
 
 ## Installation
 
-Linker supports Chromium 121 or newer and Firefox 133 or newer.
+Linker supports both Chromium and Firefox. Firefox is on a best effort basis since I do not actively use it, however if there are issues reported, I will fix them.
 
 - **Chromium:** Open `chrome://extensions`, enable developer mode, choose
   **Load unpacked**, and select this directory.
-- **Firefox:** Open `about:debugging#/runtime/this-firefox`, choose
-  **Load Temporary Add-on**, and select `manifest.json`.
+- **Firefox:** Extract a `.firefox.zip` release, open
+  `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and
+  select its `manifest.json` until the Mozilla Add-ons listing is available.
 
 Open the browser's extensions menu to pin Linker to the toolbar. Firefox
 temporary add-ons must be loaded again after restarting the browser; permanent
@@ -27,10 +28,10 @@ Run the zero-dependency test suite with Node.js 20 or newer:
 node --test
 ```
 
-The tests execute the real background script with both Firefox's `browser` API
-and Chromium's `chrome` API. Before releasing, also load the extension in both
-browsers, create direct and parameterized shortcuts, verify both redirect, then
-restart each browser and verify the redirects again.
+The tests execute the real background script with the supported browser APIs.
+Chromium is the primary manual test target. Before releasing, create direct and
+parameterized shortcuts, verify both redirect, then restart the browser and
+verify the redirects again. Firefox is tested on a best-effort basis.
 
 ## Description
 
