@@ -22,17 +22,6 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'"
   },
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "linker@taichikuji.github.io",
-      "strict_min_version": "140.0",
-      "data_collection_permissions": {
-        "required": [
-          "none"
-        ]
-      }
-    }
-  },
   "action": {
     "default_title": "Click to Go/Link",
     "default_icon": {

@@ -162,7 +162,7 @@ test('toolbar click focuses an existing Firefox manager tab', async () => {
   assert.deepEqual(result.sentMessages, [[7, { type: 'focus-search' }]]);
 });
 
-test('manifest declares Chromium and Firefox background contexts', () => {
+test('base manifest is Chromium-first', () => {
   const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 
   assert.equal(manifest.manifest_version, 3);
@@ -171,11 +171,5 @@ test('manifest declares Chromium and Firefox background contexts', () => {
     'src/background/service-worker.js'
   );
   assert.equal(manifest.action.default_popup, undefined);
-  assert.deepEqual(manifest.browser_specific_settings.gecko, {
-    id: 'linker@taichikuji.github.io',
-    strict_min_version: '140.0',
-    data_collection_permissions: {
-      required: ['none']
-    }
-  });
+  assert.equal(manifest.browser_specific_settings, undefined);
 });
