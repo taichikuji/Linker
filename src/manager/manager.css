@@ -104,11 +104,8 @@ button {
 }
 
 .brand-mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--blue);
-  color: var(--on-accent);
+  width: 28px;
+  height: 28px;
 }
 
 .brand h1,
@@ -129,6 +126,8 @@ button {
 
 .header-actions {
   display: flex;
+  align-items: center;
+  flex-shrink: 0;
   gap: 4px;
 }
 
