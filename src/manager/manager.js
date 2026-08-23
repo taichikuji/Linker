@@ -1,7 +1,7 @@
 const CONFIG = {
-  HELP_URL: 'https://github.com/taichikuji/Linker#user-guide',
+  HELP_URL: 'https://github.com/taichikuji/Linker#functionality',
   MAX_SHORTCUT_LENGTH: 100,
-  MAX_IMPORT_BYTES: 1024 * 1024,
+  MAX_IMPORT_BYTES: 100 * 1024,
   MAX_IMPORT_ENTRIES: 500,
   ALLOWED_PROTOCOLS: ['http:', 'https:'],
   VARIABLE_TOKEN: '{*}'
@@ -10,6 +10,9 @@ const CONFIG = {
 const browserApi = globalThis.browser ?? globalThis.chrome;
 const MAX_REGEX_RULES = browserApi.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
 const REGEX_RULE_WARNING_THRESHOLD = Math.max(0, MAX_REGEX_RULES - 100);
+const SYNC_MAX_ITEMS = browserApi.storage.sync.MAX_ITEMS ?? 512;
+const SYNC_QUOTA_BYTES = browserApi.storage.sync.QUOTA_BYTES ?? 102400;
+const SYNC_QUOTA_BYTES_PER_ITEM = browserApi.storage.sync.QUOTA_BYTES_PER_ITEM ?? 8192;
 
 const state = {
   entries: {},
@@ -24,6 +27,7 @@ const elements = {
   itemList: document.getElementById('item-list'),
   emptyState: document.getElementById('empty-state'),
   addSection: document.getElementById('add-section'),
+  editorForm: document.getElementById('editor-form'),
   formTitle: document.getElementById('form-title'),
   shortcutInput: document.getElementById('go-link'),
   urlInput: document.getElementById('full-link'),
@@ -43,6 +47,8 @@ const elements = {
   confirmModal: document.getElementById('confirm-modal'),
   confirmTitle: document.getElementById('confirm-title'),
   confirmOk: document.getElementById('confirm-ok'),
+  confirmIcon: document.getElementById('confirm-icon'),
+  confirmLabel: document.getElementById('confirm-label'),
   confirmCancel: document.getElementById('confirm-cancel')
 };
 
@@ -54,6 +60,13 @@ browserApi.storage.onChanged.addListener((changes, namespace) => {
 
 browserApi.runtime.onMessage.addListener(message => {
   if (message?.type === 'focus-search') focusSearch();
+  if (message?.type === 'prefill-url') {
+    prefillSourceUrl(message.url);
+    focusSearch();
+  }
+  if (message?.type === 'rule-update-failed') {
+    showToast('Shortcuts were saved, but browser routing could not be updated.', 'error');
+  }
 });
 
 async function initialize() {
@@ -61,11 +74,7 @@ async function initialize() {
   const sourceUrl = consumeSourceUrl();
   await loadEntries();
 
-  if (sourceUrl) {
-    elements.urlInput.value = sourceUrl;
-  }
-
-  updateVariableFields();
+  if (sourceUrl) prefillSourceUrl(sourceUrl);
   focusSearch();
 }
 
@@ -74,13 +83,28 @@ function focusSearch() {
   elements.search.select();
 }
 
+function prefillSourceUrl(url) {
+  if (!isValidTargetUrl(url)) return;
+
+  if (state.editingShortcut || elements.urlInput.value || elements.shortcutInput.value) {
+    showToast('Current shortcut draft preserved.', 'error');
+  } else {
+    elements.urlInput.value = url;
+    updateVariableFields();
+  }
+
+}
+
 function setupEventListeners() {
   elements.search.addEventListener('input', renderEntries);
   elements.search.addEventListener('keydown', event => {
     if (event.key === 'Enter') elements.itemList.querySelector('.shortcut-open')?.click();
   });
+  elements.editorForm.addEventListener('submit', event => {
+    event.preventDefault();
+    return saveShortcut();
+  });
   elements.urlInput.addEventListener('input', updateVariableFields);
-  elements.saveButton.addEventListener('click', saveShortcut);
   elements.cancelEditButton.addEventListener('click', resetForm);
   elements.helpButton.addEventListener('click', openHelp);
   elements.importButton.addEventListener('click', () => elements.fileInput.click());
@@ -271,7 +295,7 @@ function updateVariableFields() {
 
 async function saveShortcut() {
   const originalShortcut = state.editingShortcut;
-  const shortcut = elements.shortcutInput.value.trim();
+  const shortcut = elements.shortcutInput.value.trim().toLowerCase();
   const url = elements.urlInput.value.trim();
   const fallbackUrl = elements.fallbackInput.value.trim();
 
@@ -402,7 +426,7 @@ function parseImportData(parsed) {
   }
 
   const validEntries = sourceEntries.flatMap(([rawShortcut, value]) => {
-    const shortcut = rawShortcut.trim();
+    const shortcut = rawShortcut.trim().toLowerCase();
     const rawUrl = typeof value === 'string' ? value : value?.url;
     const rawFallbackUrl = typeof value === 'object' ? value?.fallbackUrl : undefined;
     const url = typeof rawUrl === 'string' ? rawUrl.trim() : rawUrl;
@@ -422,11 +446,43 @@ function parseImportData(parsed) {
     throw new Error('No valid shortcuts were found in this file.');
   }
 
+  const entries = Object.fromEntries(validEntries);
+  const importedCount = Object.keys(entries).length;
   return {
-    entries: Object.fromEntries(validEntries),
-    importedCount: validEntries.length,
-    skippedCount: sourceEntries.length - validEntries.length
+    entries,
+    importedCount,
+    skippedCount: sourceEntries.length - importedCount
   };
+}
+
+function serializedEntryBytes(shortcut, entry) {
+  return new Blob([shortcut, JSON.stringify(entry)]).size;
+}
+
+async function ensureImportFitsSyncStorage(importedEntries) {
+  const shortcuts = Object.keys(importedEntries);
+  const oversized = shortcuts.find(shortcut =>
+    serializedEntryBytes(shortcut, importedEntries[shortcut]) > SYNC_QUOTA_BYTES_PER_ITEM
+  );
+  if (oversized) throw new Error(`go/${oversized} is too large for browser sync storage.`);
+
+  const stored = await browserApi.storage.sync.get(null);
+  const projectedItems = new Set([...Object.keys(stored), ...shortcuts]).size;
+  if (projectedItems > SYNC_MAX_ITEMS) {
+    throw new Error(`Import exceeds the browser limit of ${SYNC_MAX_ITEMS} synced shortcuts.`);
+  }
+
+  const [usedBytes, replacedBytes] = await Promise.all([
+    browserApi.storage.sync.getBytesInUse(null),
+    browserApi.storage.sync.getBytesInUse(shortcuts)
+  ]);
+  const importedBytes = Object.entries(importedEntries).reduce(
+    (bytes, [shortcut, entry]) => bytes + serializedEntryBytes(shortcut, entry),
+    0
+  );
+  if (usedBytes - replacedBytes + importedBytes > SYNC_QUOTA_BYTES) {
+    throw new Error('Import exceeds the browser sync-storage quota.');
+  }
 }
 
 async function importShortcuts(event) {
@@ -435,7 +491,7 @@ async function importShortcuts(event) {
 
   try {
     if (file.size > CONFIG.MAX_IMPORT_BYTES) {
-      throw new Error('Import file is larger than 1 MB.');
+      throw new Error('Import file is larger than 100 KB.');
     }
 
     const imported = parseImportData(JSON.parse(await file.text()));
@@ -443,6 +499,18 @@ async function importShortcuts(event) {
 
     if (countRedirectRules(nextEntries) > MAX_REGEX_RULES) {
       throw new Error(`Import exceeds the browser limit of ${MAX_REGEX_RULES} redirect rules.`);
+    }
+    await ensureImportFitsSyncStorage(imported.entries);
+
+    const replacementCount = Object.keys(imported.entries)
+      .filter(shortcut => shortcut in state.entries)
+      .length;
+    if (replacementCount > 0) {
+      const confirmed = await showConfirmModal(
+        `Import will replace ${replacementCount} existing shortcut${replacementCount === 1 ? '' : 's'}. Continue?`,
+        { confirmLabel: 'Import', danger: false }
+      );
+      if (!confirmed) return;
     }
 
     await browserApi.storage.sync.set(imported.entries);
@@ -480,12 +548,15 @@ function hideToast() {
   state.toastTimeout = null;
 }
 
-function showConfirmModal(message) {
+function showConfirmModal(message, { confirmLabel = 'Delete', danger = true } = {}) {
   if (state.pendingConfirmation) state.pendingConfirmation(false);
 
   return new Promise(resolve => {
     const previousFocus = document.activeElement;
     elements.confirmTitle.textContent = message;
+    elements.confirmLabel.textContent = confirmLabel;
+    elements.confirmIcon.hidden = !danger;
+    elements.confirmOk.className = danger ? 'danger-button' : 'primary-button';
     elements.confirmModal.classList.remove('hidden');
     elements.confirmCancel.focus();
 

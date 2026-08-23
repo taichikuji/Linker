@@ -28,7 +28,7 @@ Run the zero-dependency test suite with Node.js 20 or newer:
 node --test
 ```
 
-The tests execute the real background script with the supported browser APIs.
+The tests execute the real background and manager scripts with the supported browser APIs.
 Chromium is the primary manual test target. Before releasing, create direct and
 parameterized shortcuts, verify both redirect, then restart the browser and
 verify the redirects again. Firefox is tested on a best-effort basis.
@@ -74,6 +74,13 @@ There's a lot that you can do purely based on this! And none is hardcoded, so yo
 You can export your database for sharing with another computer, or if you are going to reset your PC... Whatever you want to do. This allows you to essentially make a backup of your current state of the Linker Database.
 
 It follows the same JSON nomenclature for exporting/importing as [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj), hence it is directly compatible ( for now! ) and you can migrate easily to Linker if you want.
+
+### Permissions and privacy
+
+Linker stores shortcuts in browser sync storage and does not send browsing data
+to an external service. The all-sites permission lets its local redirect rules
+recognize `go/<shortcut>` when the browser turns that text into a web request or
+search query.
 
 ---
 
