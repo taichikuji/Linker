@@ -13,7 +13,6 @@
   "permissions": [
     "storage",
     "tabs",
-    "unlimitedStorage",
     "declarativeNetRequest"
   ],
   "host_permissions": [

@@ -145,17 +145,20 @@ async function openManager(sourceTab) {
   try {
     const tabs = await browserApi.tabs.query({});
     const existing = tabs.find(tab => tab.url?.startsWith(MANAGER_URL));
+    const sourceUrl = isValidTargetUrl(sourceTab?.url) ? sourceTab.url : '';
 
     if (existing) {
       await browserApi.tabs.update(existing.id, { active: true });
       if (browserApi.windows && existing.windowId !== undefined) {
         await browserApi.windows.update(existing.windowId, { focused: true });
       }
-      await browserApi.tabs.sendMessage(existing.id, { type: 'focus-search' }).catch(() => {});
+      const message = sourceUrl
+        ? { type: 'prefill-url', url: sourceUrl }
+        : { type: 'focus-search' };
+      await browserApi.tabs.sendMessage(existing.id, message).catch(() => {});
       return;
     }
 
-    const sourceUrl = isValidTargetUrl(sourceTab?.url) ? sourceTab.url : '';
     const url = sourceUrl ? `${MANAGER_URL}#${encodeURIComponent(sourceUrl)}` : MANAGER_URL;
     await browserApi.tabs.create({ active: true, url });
   } catch (error) {
@@ -163,15 +166,17 @@ async function openManager(sourceTab) {
   }
 }
 
-browserApi.runtime.onInstalled.addListener(scheduleRuleUpdate);
-browserApi.runtime.onStartup.addListener(scheduleRuleUpdate);
+browserApi.runtime.onInstalled.addListener(() => scheduleRuleUpdate().catch(() => {}));
+browserApi.runtime.onStartup.addListener(() => scheduleRuleUpdate().catch(() => {}));
 browserApi.action.onClicked.addListener(openManager);
 
 browserApi.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === CONFIG.STORAGE_NAMESPACE && Object.keys(changes).length > 0) {
-    scheduleRuleUpdate();
+    scheduleRuleUpdate().catch(() => {
+      browserApi.runtime.sendMessage({ type: 'rule-update-failed' }).catch(() => {});
+    });
   }
 });
 
 // Background contexts can start independently of browser startup events.
-scheduleRuleUpdate();
+scheduleRuleUpdate().catch(() => {});

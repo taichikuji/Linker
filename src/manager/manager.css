@@ -35,7 +35,6 @@
   --surface: light-dark(#ffffff, var(--surface0));
   --surface-hover: light-dark(var(--surface0), var(--surface1));
   --border: light-dark(var(--surface0), var(--surface1));
-  --on-accent: light-dark(#ffffff, var(--base));
   --focus-ring: light-dark(var(--blue), var(--lavender));
   --shadow: light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.3));
 }
