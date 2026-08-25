@@ -4,10 +4,12 @@ A small browser extension for creating personal URL shortcuts.
 
 ## Installation
 
-Linker supports Chromium-based browsers.
+Linker supports Chromium-based desktop browsers, including Google Chrome,
+Brave, Microsoft Edge, Opera, Vivaldi, and compatible Chromium forks.
 
-Open `chrome://extensions`, enable developer mode, choose **Load unpacked**, and
-select this directory.
+Open your browser's extensions page (for example, `chrome://extensions`,
+`brave://extensions`, or `edge://extensions`), enable developer mode, choose
+**Load unpacked**, and select this directory.
 
 Open the browser's extensions menu to pin Linker to the toolbar.
 
@@ -30,10 +32,12 @@ Run the zero-dependency test suite with Node.js 20 or newer:
 node --test
 ```
 
-The tests execute the real background and manager scripts with the Chrome
-extension API. Before releasing, create direct and parameterized shortcuts in a
-Chromium-based browser, verify both redirect, then restart the browser and
-verify the redirects again.
+The tests execute the real background and manager scripts against Chromium's
+standard `chrome.*` extension API namespace; despite its name, that namespace
+is shared by compatible Chromium-based browsers. Before releasing, create
+direct and parameterized shortcuts in Chrome and at least one other
+Chromium-based browser such as Brave or Edge, verify both redirect, then restart
+each browser and verify the redirects again.
 
 ## Description
 
