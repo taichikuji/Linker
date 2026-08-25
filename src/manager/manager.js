@@ -7,12 +7,11 @@ const CONFIG = {
   VARIABLE_TOKEN: '{*}'
 };
 
-const browserApi = globalThis.browser ?? globalThis.chrome;
-const MAX_REGEX_RULES = browserApi.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
+const MAX_REGEX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
 const REGEX_RULE_WARNING_THRESHOLD = Math.max(0, MAX_REGEX_RULES - 100);
-const SYNC_MAX_ITEMS = browserApi.storage.sync.MAX_ITEMS ?? 512;
-const SYNC_QUOTA_BYTES = browserApi.storage.sync.QUOTA_BYTES ?? 102400;
-const SYNC_QUOTA_BYTES_PER_ITEM = browserApi.storage.sync.QUOTA_BYTES_PER_ITEM ?? 8192;
+const SYNC_MAX_ITEMS = chrome.storage.sync.MAX_ITEMS ?? 512;
+const SYNC_QUOTA_BYTES = chrome.storage.sync.QUOTA_BYTES ?? 102400;
+const SYNC_QUOTA_BYTES_PER_ITEM = chrome.storage.sync.QUOTA_BYTES_PER_ITEM ?? 8192;
 
 const state = {
   entries: {},
@@ -54,11 +53,11 @@ const elements = {
 
 document.addEventListener('DOMContentLoaded', initialize);
 
-browserApi.storage.onChanged.addListener((changes, namespace) => {
+chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'sync' && Object.keys(changes).length > 0) loadEntries();
 });
 
-browserApi.runtime.onMessage.addListener(message => {
+chrome.runtime.onMessage.addListener(message => {
   if (message?.type === 'focus-search') focusSearch();
   if (message?.type === 'prefill-url') {
     prefillSourceUrl(message.url);
@@ -184,7 +183,7 @@ function updateCapacityWarning() {
 
 async function loadEntries() {
   try {
-    const stored = await browserApi.storage.sync.get(null);
+    const stored = await chrome.storage.sync.get(null);
     state.entries = Object.fromEntries(
       Object.entries(stored).filter(([, value]) => isStoredEntry(value))
     );
@@ -336,9 +335,9 @@ async function saveShortcut() {
   }
 
   try {
-    await browserApi.storage.sync.set({ [shortcut]: entry });
+    await chrome.storage.sync.set({ [shortcut]: entry });
     if (originalShortcut && originalShortcut !== shortcut) {
-      await browserApi.storage.sync.remove(originalShortcut);
+      await chrome.storage.sync.remove(originalShortcut);
     }
 
     state.entries = nextEntries;
@@ -355,7 +354,7 @@ async function saveShortcut() {
 
 async function openShortcut(url) {
   try {
-    await browserApi.tabs.create({ active: true, url });
+    await chrome.tabs.create({ active: true, url });
   } catch (error) {
     console.error('Error opening shortcut:', error);
     showToast('Could not open the shortcut.', 'error');
@@ -367,7 +366,7 @@ async function deleteShortcut(shortcut) {
   if (!confirmed) return;
 
   try {
-    await browserApi.storage.sync.remove(shortcut);
+    await chrome.storage.sync.remove(shortcut);
     delete state.entries[shortcut];
     if (state.editingShortcut === shortcut) resetForm();
     renderEntries();
@@ -381,7 +380,7 @@ async function deleteShortcut(shortcut) {
 
 async function openHelp() {
   try {
-    await browserApi.tabs.create({ active: true, url: CONFIG.HELP_URL });
+    await chrome.tabs.create({ active: true, url: CONFIG.HELP_URL });
   } catch (error) {
     console.error('Error opening help:', error);
     showToast('Could not open the help page.', 'error');
@@ -466,15 +465,15 @@ async function ensureImportFitsSyncStorage(importedEntries) {
   );
   if (oversized) throw new Error(`go/${oversized} is too large for browser sync storage.`);
 
-  const stored = await browserApi.storage.sync.get(null);
+  const stored = await chrome.storage.sync.get(null);
   const projectedItems = new Set([...Object.keys(stored), ...shortcuts]).size;
   if (projectedItems > SYNC_MAX_ITEMS) {
     throw new Error(`Import exceeds the browser limit of ${SYNC_MAX_ITEMS} synced shortcuts.`);
   }
 
   const [usedBytes, replacedBytes] = await Promise.all([
-    browserApi.storage.sync.getBytesInUse(null),
-    browserApi.storage.sync.getBytesInUse(shortcuts)
+    chrome.storage.sync.getBytesInUse(null),
+    chrome.storage.sync.getBytesInUse(shortcuts)
   ]);
   const importedBytes = Object.entries(importedEntries).reduce(
     (bytes, [shortcut, entry]) => bytes + serializedEntryBytes(shortcut, entry),
@@ -513,7 +512,7 @@ async function importShortcuts(event) {
       if (!confirmed) return;
     }
 
-    await browserApi.storage.sync.set(imported.entries);
+    await chrome.storage.sync.set(imported.entries);
     state.entries = nextEntries;
     renderEntries();
     updateCapacityWarning();
