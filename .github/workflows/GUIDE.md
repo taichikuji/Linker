@@ -27,16 +27,12 @@ The push will trigger a workflow visible in the [Actions](https://github.com/tai
 
 * Run the browser unit tests.
 * Parse the version number.
-* Package the primary Chromium extension and a Firefox build for Mozilla
-  distribution.
-* Upload both archives as one workflow artifact.
+* Package the Chromium extension.
+* Upload the archive as a workflow artifact.
 
 ### 4. Verification
 
-Once the Action completes successfully, verify that both
-`Linker_X.Y.Z.chromium.zip` and `Linker_X.Y.Z.firefox.zip` are attached to the
-new automated GitHub Release here:
+Once the Action completes successfully, verify that
+`Linker_X.Y.Z.chromium.zip` is attached to the new automated GitHub Release
+here:
 [https://github.com/taichikuji/Linker/releases](https://github.com/taichikuji/Linker/releases)
-
-The packages share the same source code but contain browser-specific manifests.
-Submit the Firefox archive to Mozilla for signing and publication.

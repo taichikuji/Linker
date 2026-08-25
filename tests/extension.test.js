@@ -24,7 +24,7 @@ function eventSlot(listeners, name) {
   };
 }
 
-function runBackground(apiNamespace, existingTabs = [], options = {}) {
+function runBackground(existingTabs = [], options = {}) {
   const listeners = {};
   const createdTabs = [];
   const updatedTabs = [];
@@ -51,7 +51,7 @@ function runBackground(apiNamespace, existingTabs = [], options = {}) {
       }
     },
     runtime: {
-      getURL: path => `moz-extension://linker/${path}`,
+      getURL: path => `chrome-extension://linker/${path}`,
       sendMessage: async message => runtimeMessages.push(clone(message)),
       onInstalled: {
         addListener: listener => {
@@ -108,7 +108,7 @@ function runBackground(apiNamespace, existingTabs = [], options = {}) {
   };
 
   const context = vm.createContext({
-    [apiNamespace]: api,
+    chrome: api,
     URL,
     console: { error: (...args) => errors.push(args) }
   });
@@ -126,7 +126,7 @@ function runBackground(apiNamespace, existingTabs = [], options = {}) {
   };
 }
 
-function runManager(apiNamespace, initialEntries = {}, options = {}) {
+function runManager(initialEntries = {}, options = {}) {
   const listeners = {};
   const elements = new Map();
   const openedTabs = [];
@@ -241,7 +241,7 @@ function runManager(apiNamespace, initialEntries = {}, options = {}) {
   };
 
   const context = vm.createContext({
-    [apiNamespace]: api,
+    chrome: api,
     Blob,
     URL,
     clearTimeout() {},
@@ -265,105 +265,103 @@ function runManager(apiNamespace, initialEntries = {}, options = {}) {
   };
 }
 
-for (const apiNamespace of ['browser', 'chrome']) {
-  test(`background initializes through the ${apiNamespace} API`, async () => {
-    const { listeners, updated, createdTabs } = runBackground(apiNamespace);
-    const update = await updated;
+test('background initializes through the Chrome API', async () => {
+  const { listeners, updated, createdTabs } = runBackground();
+  const update = await updated;
 
-    assert.equal(typeof listeners.installed, 'function');
-    assert.equal(typeof listeners.startup, 'function');
-    assert.equal(typeof listeners.storageChanged, 'function');
-    assert.equal(typeof listeners.actionClicked, 'function');
-    assert.deepEqual(update.removeRuleIds, [99]);
-    assert.equal(update.addRules.length, 3);
+  assert.equal(typeof listeners.installed, 'function');
+  assert.equal(typeof listeners.startup, 'function');
+  assert.equal(typeof listeners.storageChanged, 'function');
+  assert.equal(typeof listeners.actionClicked, 'function');
+  assert.deepEqual(update.removeRuleIds, [99]);
+  assert.equal(update.addRules.length, 3);
 
-    assert.deepEqual(update.addRules[0], {
-      id: 1,
-      priority: 1,
-      action: {
-        type: 'redirect',
-        redirect: { url: 'https://github.com/' }
-      },
-      condition: {
-        regexFilter: '^(?:https?://go/gh/?$|https?://.*[?&][^#]*=go%2Fgh(?:&|$))',
-        resourceTypes: ['main_frame']
-      }
-    });
-
-    assert.equal(update.addRules[1].priority, 2);
-    assert.equal(
-      update.addRules[1].action.redirect.regexSubstitution,
-      'https://github.com/taichikuji/Linker/issues/\\1\\2'
-    );
-    assert.equal(
-      update.addRules[2].action.redirect.url,
-      'https://github.com/taichikuji/Linker/issues'
-    );
-
-    await listeners.actionClicked({ url: 'https://example.com/path?q=1' });
-    assert.deepEqual(createdTabs, [{
-      active: true,
-      url: 'moz-extension://linker/src/manager/manager.html#https%3A%2F%2Fexample.com%2Fpath%3Fq%3D1'
-    }]);
+  assert.deepEqual(update.addRules[0], {
+    id: 1,
+    priority: 1,
+    action: {
+      type: 'redirect',
+      redirect: { url: 'https://github.com/' }
+    },
+    condition: {
+      regexFilter: '^(?:https?://go/gh/?$|https?://.*[?&][^#]*=go%2Fgh(?:&|$))',
+      resourceTypes: ['main_frame']
+    }
   });
 
-  test(`manager validates import and export through the ${apiNamespace} API`, async () => {
-    const result = runManager(apiNamespace, {
-      gh: { url: 'https://github.com/' },
-      issue: {
-        url: 'https://github.com/issues/{*}',
-        fallbackUrl: 'https://github.com/issues'
-      }
-    });
+  assert.equal(update.addRules[1].priority, 2);
+  assert.equal(
+    update.addRules[1].action.redirect.regexSubstitution,
+    'https://github.com/taichikuji/Linker/issues/\\1\\2'
+  );
+  assert.equal(
+    update.addRules[2].action.redirect.url,
+    'https://github.com/taichikuji/Linker/issues'
+  );
 
-    await vm.runInContext('initialize()', result.context);
+  await listeners.actionClicked({ url: 'https://example.com/path?q=1' });
+  assert.deepEqual(createdTabs, [{
+    active: true,
+    url: 'chrome-extension://linker/src/manager/manager.html#https%3A%2F%2Fexample.com%2Fpath%3Fq%3D1'
+  }]);
+});
 
-    const imported = JSON.parse(vm.runInContext(`JSON.stringify(parseImportData({
-      docs: 'https://developer.mozilla.org/',
-      issue: { url: 'https://github.com/issues/{*}', fallbackUrl: 'https://github.com/issues' },
-      unsafe: 'javascript:alert(1)'
-    }))`, result.context));
-    assert.deepEqual(Object.keys(imported.entries), ['docs', 'issue']);
-    assert.equal(imported.skippedCount, 1);
-
-    const exported = JSON.parse(vm.runInContext(
-      'JSON.stringify(createExportData(state.entries))',
-      result.context
-    ));
-    assert.deepEqual(exported, {
-      gh: 'https://github.com/',
-      issue: {
-        url: 'https://github.com/issues/{*}',
-        fallbackUrl: 'https://github.com/issues'
-      }
-    });
+test('manager validates import and export through the Chrome API', async () => {
+  const result = runManager({
+    gh: { url: 'https://github.com/' },
+    issue: {
+      url: 'https://github.com/issues/{*}',
+      fallbackUrl: 'https://github.com/issues'
+    }
   });
 
-  test(`manager prefills and saves through the ${apiNamespace} API`, async () => {
-    const sourceUrl = 'https://example.com/path?q=1';
-    const result = runManager(apiNamespace, {}, {
-      hash: `#${encodeURIComponent(sourceUrl)}`
-    });
+  await vm.runInContext('initialize()', result.context);
 
-    await vm.runInContext('initialize()', result.context);
+  const imported = JSON.parse(vm.runInContext(`JSON.stringify(parseImportData({
+    docs: 'https://developer.chrome.com/docs/extensions/',
+    issue: { url: 'https://github.com/issues/{*}', fallbackUrl: 'https://github.com/issues' },
+    unsafe: 'javascript:alert(1)'
+  }))`, result.context));
+  assert.deepEqual(Object.keys(imported.entries), ['docs', 'issue']);
+  assert.equal(imported.skippedCount, 1);
 
-    const urlInput = result.elements.get('full-link');
-    const shortcutInput = result.elements.get('go-link');
-    assert.equal(urlInput.value, sourceUrl);
-    assert.equal(result.context.document.activeElement, result.elements.get('search'));
-
-    shortcutInput.value = 'EXAMPLE';
-    await result.elements.get('editor-form').dispatch('submit');
-
-    assert.deepEqual(result.getEntries(), {
-      example: { url: sourceUrl }
-    });
+  const exported = JSON.parse(vm.runInContext(
+    'JSON.stringify(createExportData(state.entries))',
+    result.context
+  ));
+  assert.deepEqual(exported, {
+    gh: 'https://github.com/',
+    issue: {
+      url: 'https://github.com/issues/{*}',
+      fallbackUrl: 'https://github.com/issues'
+    }
   });
-}
+});
 
-test('toolbar click focuses an existing Firefox manager tab', async () => {
-  const managerUrl = 'moz-extension://linker/src/manager/manager.html';
-  const result = runBackground('browser', [{
+test('manager prefills and saves through the Chrome API', async () => {
+  const sourceUrl = 'https://example.com/path?q=1';
+  const result = runManager({}, {
+    hash: `#${encodeURIComponent(sourceUrl)}`
+  });
+
+  await vm.runInContext('initialize()', result.context);
+
+  const urlInput = result.elements.get('full-link');
+  const shortcutInput = result.elements.get('go-link');
+  assert.equal(urlInput.value, sourceUrl);
+  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+
+  shortcutInput.value = 'EXAMPLE';
+  await result.elements.get('editor-form').dispatch('submit');
+
+  assert.deepEqual(result.getEntries(), {
+    example: { url: sourceUrl }
+  });
+});
+
+test('toolbar click focuses an existing manager tab', async () => {
+  const managerUrl = 'chrome-extension://linker/src/manager/manager.html';
+  const result = runBackground([{
     id: 7,
     url: managerUrl,
     windowId: 9
@@ -379,8 +377,8 @@ test('toolbar click focuses an existing Firefox manager tab', async () => {
 });
 
 test('toolbar click prefills an existing manager from the current page', async () => {
-  const managerUrl = 'moz-extension://linker/src/manager/manager.html';
-  const result = runBackground('browser', [{ id: 7, url: managerUrl, windowId: 9 }]);
+  const managerUrl = 'chrome-extension://linker/src/manager/manager.html';
+  const result = runBackground([{ id: 7, url: managerUrl, windowId: 9 }]);
 
   await result.updated;
   await result.listeners.actionClicked({ url: 'https://example.com/current' });
@@ -392,7 +390,7 @@ test('toolbar click prefills an existing manager from the current page', async (
 });
 
 test('routing failures are reported to the manager', async () => {
-  const result = runBackground('browser', [], { failRuleUpdateAt: 2 });
+  const result = runBackground([], { failRuleUpdateAt: 2 });
   await result.updated;
 
   result.listeners.storageChanged({ gh: { newValue: {} } }, 'sync');
@@ -403,7 +401,7 @@ test('routing failures are reported to the manager', async () => {
 });
 
 test('manager confirms normalized import replacements', async () => {
-  const result = runManager('browser', { gh: { url: 'https://github.com/' } });
+  const result = runManager({ gh: { url: 'https://github.com/' } });
   await vm.runInContext('initialize()', result.context);
 
   result.elements.get('import-file').files = [{
@@ -421,7 +419,7 @@ test('manager confirms normalized import replacements', async () => {
 });
 
 test('manager displays background routing failures', async () => {
-  const result = runManager('browser');
+  const result = runManager();
   await vm.runInContext('initialize()', result.context);
 
   result.listeners.runtimeMessage({ type: 'rule-update-failed' });
@@ -434,7 +432,7 @@ test('manager displays background routing failures', async () => {
 });
 
 test('existing manager prefills the current URL while returning focus to search', async () => {
-  const result = runManager('browser');
+  const result = runManager();
   await vm.runInContext('initialize()', result.context);
   result.elements.get('go-link').focus();
 
@@ -448,7 +446,7 @@ test('existing manager prefills the current URL while returning focus to search'
 });
 
 test('manager rejects sync items that exceed the per-item quota', async () => {
-  const result = runManager('browser');
+  const result = runManager();
   const oversizedUrl = `https://example.com/${'x'.repeat(9000)}`;
 
   await assert.rejects(
@@ -460,7 +458,7 @@ test('manager rejects sync items that exceed the per-item quota', async () => {
   );
 });
 
-test('base manifest is Chromium-first', () => {
+test('manifest defines a Chromium MV3 service worker', () => {
   const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 
   assert.equal(manifest.manifest_version, 3);
@@ -469,6 +467,5 @@ test('base manifest is Chromium-first', () => {
     'src/background/service-worker.js'
   );
   assert.equal(manifest.action.default_popup, undefined);
-  assert.equal(manifest.browser_specific_settings, undefined);
   assert.equal(manifest.permissions.includes('unlimitedStorage'), false);
 });

@@ -4,17 +4,19 @@ A small browser extension for creating personal URL shortcuts.
 
 ## Installation
 
-Linker supports both Chromium and Firefox. Firefox is on a best effort basis since I do not actively use it, however if there are issues reported, I will fix them.
+Linker supports Chromium-based browsers.
 
-- **Chromium:** Open `chrome://extensions`, enable developer mode, choose
-  **Load unpacked**, and select this directory.
-- **Firefox:** Extract a `.firefox.zip` release, open
-  `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and
-  select its `manifest.json` until the Mozilla Add-ons listing is available.
+Open `chrome://extensions`, enable developer mode, choose **Load unpacked**, and
+select this directory.
 
-Open the browser's extensions menu to pin Linker to the toolbar. Firefox
-temporary add-ons must be loaded again after restarting the browser; permanent
-installation requires a signed package.
+Open the browser's extensions menu to pin Linker to the toolbar.
+
+## Why is there no Firefox build?
+
+Linker was created for Chromium-based browsers and has never been fully tested
+on Firefox. It has also not been actively used there, nor has Firefox support
+been requested. Maintaining a build that cannot be confidently validated is
+therefore outside Linker's scope.
 
 ## Tag versioning workflow
 
@@ -28,10 +30,10 @@ Run the zero-dependency test suite with Node.js 20 or newer:
 node --test
 ```
 
-The tests execute the real background and manager scripts with the supported browser APIs.
-Chromium is the primary manual test target. Before releasing, create direct and
-parameterized shortcuts, verify both redirect, then restart the browser and
-verify the redirects again. Firefox is tested on a best-effort basis.
+The tests execute the real background and manager scripts with the Chrome
+extension API. Before releasing, create direct and parameterized shortcuts in a
+Chromium-based browser, verify both redirect, then restart the browser and
+verify the redirects again.
 
 ## Description
 

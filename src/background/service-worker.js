@@ -7,9 +7,8 @@ const CONFIG = {
   VARIABLE_TOKEN: '{*}'
 };
 
-const browserApi = globalThis.browser ?? globalThis.chrome;
-const MAX_REGEX_RULES = browserApi.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
-const MANAGER_URL = browserApi.runtime.getURL(CONFIG.MANAGER_PATH);
+const MAX_REGEX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
+const MANAGER_URL = chrome.runtime.getURL(CONFIG.MANAGER_PATH);
 let ruleSyncQueue = Promise.resolve();
 
 /**
@@ -54,7 +53,7 @@ function escapeRegex(value) {
  * Reads all compatible Linkify/Linker entries from sync storage.
  */
 async function getStoredEntries() {
-  const stored = await browserApi.storage[CONFIG.STORAGE_NAMESPACE].get(null);
+  const stored = await chrome.storage[CONFIG.STORAGE_NAMESPACE].get(null);
   return Object.entries(stored)
     .filter(([, value]) => isValidStoredEntry(value))
     .sort(([left], [right]) => left.localeCompare(right));
@@ -122,9 +121,9 @@ async function updateRedirectRules() {
     );
   }
 
-  const oldRules = await browserApi.declarativeNetRequest.getDynamicRules();
+  const oldRules = await chrome.declarativeNetRequest.getDynamicRules();
 
-  await browserApi.declarativeNetRequest.updateDynamicRules({
+  await chrome.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: oldRules.map(rule => rule.id),
     addRules: newRules
   });
@@ -143,37 +142,37 @@ function scheduleRuleUpdate() {
 
 async function openManager(sourceTab) {
   try {
-    const tabs = await browserApi.tabs.query({});
+    const tabs = await chrome.tabs.query({});
     const existing = tabs.find(tab => tab.url?.startsWith(MANAGER_URL));
     const sourceUrl = isValidTargetUrl(sourceTab?.url) ? sourceTab.url : '';
 
     if (existing) {
-      await browserApi.tabs.update(existing.id, { active: true });
-      if (browserApi.windows && existing.windowId !== undefined) {
-        await browserApi.windows.update(existing.windowId, { focused: true });
+      await chrome.tabs.update(existing.id, { active: true });
+      if (chrome.windows && existing.windowId !== undefined) {
+        await chrome.windows.update(existing.windowId, { focused: true });
       }
       const message = sourceUrl
         ? { type: 'prefill-url', url: sourceUrl }
         : { type: 'focus-search' };
-      await browserApi.tabs.sendMessage(existing.id, message).catch(() => {});
+      await chrome.tabs.sendMessage(existing.id, message).catch(() => {});
       return;
     }
 
     const url = sourceUrl ? `${MANAGER_URL}#${encodeURIComponent(sourceUrl)}` : MANAGER_URL;
-    await browserApi.tabs.create({ active: true, url });
+    await chrome.tabs.create({ active: true, url });
   } catch (error) {
     console.error('Error opening manager:', error);
   }
 }
 
-browserApi.runtime.onInstalled.addListener(() => scheduleRuleUpdate().catch(() => {}));
-browserApi.runtime.onStartup.addListener(() => scheduleRuleUpdate().catch(() => {}));
-browserApi.action.onClicked.addListener(openManager);
+chrome.runtime.onInstalled.addListener(() => scheduleRuleUpdate().catch(() => {}));
+chrome.runtime.onStartup.addListener(() => scheduleRuleUpdate().catch(() => {}));
+chrome.action.onClicked.addListener(openManager);
 
-browserApi.storage.onChanged.addListener((changes, namespace) => {
+chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === CONFIG.STORAGE_NAMESPACE && Object.keys(changes).length > 0) {
     scheduleRuleUpdate().catch(() => {
-      browserApi.runtime.sendMessage({ type: 'rule-update-failed' }).catch(() => {});
+      chrome.runtime.sendMessage({ type: 'rule-update-failed' }).catch(() => {});
     });
   }
 });
