@@ -2,7 +2,20 @@
 
 **System Instruction for AI:** To build and release a new version of the extension, you must follow these steps sequentially. Do not create a tag if there are uncommitted changes.
 
-### 1. Bump the Version
+### 1. Verify Chromium Compatibility
+
+Run the automated tests:
+
+```bash
+node --test
+```
+
+Load the unpacked extension in Chrome and at least one other Chromium-based
+browser such as Brave or Edge. In each browser, create direct and parameterized
+shortcuts, verify both redirect, restart the browser, and verify them again.
+
+### 2. Bump the Version
+
 Update the version number in `manifest.json` to the next semantic version
 (`Major.Minor.Patch`).
 Commit this change to the main branch:
@@ -12,7 +25,7 @@ git commit -m "Bump version to X.Y.Z (semantic versioning)"
 git push origin main
 ```
 
-### 2. Tag the Release
+### 3. Tag the Release
 
 Create a new annotated version tag using the exact format `vX.Y.Z` (e.g., `v1.2.0`). The workflow is configured to detect any tag starting with `v`.
 
@@ -21,7 +34,7 @@ git tag -a vX.Y.Z -m "Release vX.Y.Z"
 git push origin vX.Y.Z
 ```
 
-### 3. Monitor the Build
+### 4. Monitor the Build
 
 The push will trigger a workflow visible in the [Actions](https://github.com/taichikuji/Linker/actions) tab. The workflow will automatically:
 
@@ -30,7 +43,7 @@ The push will trigger a workflow visible in the [Actions](https://github.com/tai
 * Package the Chromium extension.
 * Upload the archive as a workflow artifact.
 
-### 4. Verification
+### 5. Verification
 
 Once the Action completes successfully, verify that
 `Linker_X.Y.Z.chromium.zip` is attached to the new automated GitHub Release

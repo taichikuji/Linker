@@ -265,7 +265,7 @@ function runManager(initialEntries = {}, options = {}) {
   };
 }
 
-test('background initializes through the Chrome API', async () => {
+test('background initializes through the Chromium extension API', async () => {
   const { listeners, updated, createdTabs } = runBackground();
   const update = await updated;
 
@@ -306,7 +306,7 @@ test('background initializes through the Chrome API', async () => {
   }]);
 });
 
-test('manager validates import and export through the Chrome API', async () => {
+test('manager validates import and export through the Chromium extension API', async () => {
   const result = runManager({
     gh: { url: 'https://github.com/' },
     issue: {
@@ -318,7 +318,7 @@ test('manager validates import and export through the Chrome API', async () => {
   await vm.runInContext('initialize()', result.context);
 
   const imported = JSON.parse(vm.runInContext(`JSON.stringify(parseImportData({
-    docs: 'https://developer.chrome.com/docs/extensions/',
+    docs: 'https://example.com/docs/',
     issue: { url: 'https://github.com/issues/{*}', fallbackUrl: 'https://github.com/issues' },
     unsafe: 'javascript:alert(1)'
   }))`, result.context));
@@ -338,7 +338,7 @@ test('manager validates import and export through the Chrome API', async () => {
   });
 });
 
-test('manager prefills and saves through the Chrome API', async () => {
+test('manager prefills and saves through the Chromium extension API', async () => {
   const sourceUrl = 'https://example.com/path?q=1';
   const result = runManager({}, {
     hash: `#${encodeURIComponent(sourceUrl)}`
