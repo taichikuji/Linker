@@ -16,6 +16,8 @@ const SYNC_QUOTA_BYTES_PER_ITEM = chrome.storage.sync.QUOTA_BYTES_PER_ITEM ?? 81
 const state = {
   entries: {},
   editingShortcut: null,
+  windowId: null,
+  lastPrefillId: null,
   toastTimeout: null,
   pendingConfirmation: null
 };
@@ -58,10 +60,16 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 });
 
 chrome.runtime.onMessage.addListener(message => {
-  if (message?.type === 'focus-search') focusSearch();
-  if (message?.type === 'prefill-url') {
-    prefillSourceUrl(message.url);
+  const targetsThisWindow = message?.windowId === undefined
+    || message.windowId === state.windowId;
+
+  if (message?.type === 'focus-search' && targetsThisWindow) focusSearch();
+  if (message?.type === 'prefill-url' && acceptPrefill(message)) {
     focusSearch();
+    chrome.runtime.sendMessage({
+      type: 'consume-prefill',
+      windowId: state.windowId
+    }).catch(() => {});
   }
   if (message?.type === 'rule-update-failed') {
     showToast('Shortcuts were saved, but browser routing could not be updated.', 'error');
@@ -70,11 +78,35 @@ chrome.runtime.onMessage.addListener(message => {
 
 async function initialize() {
   setupEventListeners();
-  const sourceUrl = consumeSourceUrl();
+  await loadPendingPrefill();
   await loadEntries();
-
-  if (sourceUrl) prefillSourceUrl(sourceUrl);
   focusSearch();
+}
+
+async function loadPendingPrefill() {
+  try {
+    const currentWindow = await chrome.windows.getCurrent();
+    state.windowId = currentWindow.id;
+    const prefill = await chrome.runtime.sendMessage({
+      type: 'consume-prefill',
+      windowId: state.windowId
+    });
+    acceptPrefill(prefill);
+  } catch (error) {
+    console.error('Error loading side panel prefill:', error);
+  }
+}
+
+function acceptPrefill(prefill) {
+  if (!prefill || typeof prefill.id !== 'string' || !isValidTargetUrl(prefill.url)) {
+    return false;
+  }
+  if (prefill.id === state.lastPrefillId) return false;
+  if (prefill.windowId !== undefined && prefill.windowId !== state.windowId) return false;
+
+  state.lastPrefillId = prefill.id;
+  prefillSourceUrl(prefill.url);
+  return true;
 }
 
 function focusSearch() {
@@ -110,19 +142,6 @@ function setupEventListeners() {
   elements.fileInput.addEventListener('change', importShortcuts);
   elements.exportButton.addEventListener('click', exportShortcuts);
   elements.toastClose.addEventListener('click', hideToast);
-}
-
-function consumeSourceUrl() {
-  if (!location.hash) return '';
-
-  try {
-    const sourceUrl = decodeURIComponent(location.hash.slice(1));
-    history.replaceState(null, '', location.pathname);
-    return isValidTargetUrl(sourceUrl) ? sourceUrl : '';
-  } catch {
-    history.replaceState(null, '', location.pathname);
-    return '';
-  }
 }
 
 function isStoredEntry(value) {

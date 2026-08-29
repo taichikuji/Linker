@@ -24,13 +24,19 @@ function eventSlot(listeners, name) {
   };
 }
 
-function runBackground(existingTabs = [], options = {}) {
+function sendRuntimeMessage(listener, message) {
+  return new Promise(resolve => {
+    assert.equal(listener(message, {}, resolve), true);
+  });
+}
+
+function runBackground(options = {}) {
   const listeners = {};
   const createdTabs = [];
-  const updatedTabs = [];
-  const sentMessages = [];
   const runtimeMessages = [];
-  const focusedWindows = [];
+  const openedPanels = [];
+  const browserOperations = [];
+  let sessionEntries = clone(options.sessionEntries ?? {});
   const errors = [];
   let ruleUpdateCalls = 0;
   let resolveUpdate;
@@ -51,8 +57,8 @@ function runBackground(existingTabs = [], options = {}) {
       }
     },
     runtime: {
-      getURL: path => `chrome-extension://linker/${path}`,
       sendMessage: async message => runtimeMessages.push(clone(message)),
+      onMessage: eventSlot(listeners, 'runtimeMessage'),
       onInstalled: {
         addListener: listener => {
           listeners.installed = listener;
@@ -72,6 +78,19 @@ function runBackground(existingTabs = [], options = {}) {
       }
     },
     storage: {
+      session: {
+        get: async key => key == null
+          ? clone(sessionEntries)
+          : { [key]: clone(sessionEntries[key]) },
+        remove: async key => {
+          browserOperations.push('session:remove');
+          delete sessionEntries[key];
+        },
+        set: async values => {
+          browserOperations.push('session:set');
+          sessionEntries = { ...sessionEntries, ...clone(values) };
+        }
+      },
       sync: {
         get: async () => ({
           gh: { url: 'https://github.com/' },
@@ -88,27 +107,22 @@ function runBackground(existingTabs = [], options = {}) {
         }
       }
     },
-    tabs: {
-      query: async () => existingTabs,
-      create: async options => {
-        createdTabs.push(JSON.parse(JSON.stringify(options)));
-      },
-      update: async (id, options) => {
-        updatedTabs.push([id, JSON.parse(JSON.stringify(options))]);
-      },
-      sendMessage: async (id, message) => {
-        sentMessages.push([id, JSON.parse(JSON.stringify(message))]);
+    sidePanel: {
+      open: async details => {
+        browserOperations.push('sidePanel:open');
+        openedPanels.push(clone(details));
       }
     },
-    windows: {
-      update: async (id, options) => {
-        focusedWindows.push([id, JSON.parse(JSON.stringify(options))]);
+    tabs: {
+      create: async options => {
+        createdTabs.push(JSON.parse(JSON.stringify(options)));
       }
     }
   };
 
   const context = vm.createContext({
     chrome: api,
+    crypto: { randomUUID: () => 'prefill-1' },
     URL,
     console: { error: (...args) => errors.push(args) }
   });
@@ -118,11 +132,11 @@ function runBackground(existingTabs = [], options = {}) {
     listeners,
     updated,
     createdTabs,
-    updatedTabs,
-    sentMessages,
     runtimeMessages,
     errors,
-    focusedWindows
+    openedPanels,
+    browserOperations,
+    getSessionEntries: () => clone(sessionEntries)
   };
 }
 
@@ -130,6 +144,7 @@ function runManager(initialEntries = {}, options = {}) {
   const listeners = {};
   const elements = new Map();
   const openedTabs = [];
+  const runtimeMessages = [];
   let entries = clone(initialEntries);
 
   const document = {
@@ -208,6 +223,12 @@ function runManager(initialEntries = {}, options = {}) {
       MAX_NUMBER_OF_REGEX_RULES: 1000
     },
     runtime: {
+      sendMessage: async message => {
+        runtimeMessages.push(clone(message));
+        return message.type === 'consume-prefill'
+          ? clone(options.pendingPrefill ?? null)
+          : undefined;
+      },
       onMessage: eventSlot(listeners, 'runtimeMessage')
     },
     storage: {
@@ -237,6 +258,9 @@ function runManager(initialEntries = {}, options = {}) {
     },
     tabs: {
       create: async details => openedTabs.push(clone(details))
+    },
+    windows: {
+      getCurrent: async () => ({ id: options.windowId ?? 9 })
     }
   };
 
@@ -247,11 +271,6 @@ function runManager(initialEntries = {}, options = {}) {
     clearTimeout() {},
     console,
     document,
-    history: { replaceState() {} },
-    location: {
-      hash: options.hash ?? '',
-      pathname: '/src/manager/manager.html'
-    },
     setTimeout: () => 0
   });
   vm.runInContext(managerSource, context);
@@ -261,12 +280,13 @@ function runManager(initialEntries = {}, options = {}) {
     elements,
     listeners,
     openedTabs,
+    runtimeMessages,
     getEntries: () => clone(entries)
   };
 }
 
 test('background initializes through the Chromium extension API', async () => {
-  const { listeners, updated, createdTabs } = runBackground();
+  const { listeners, updated } = runBackground();
   const update = await updated;
 
   assert.equal(typeof listeners.installed, 'function');
@@ -298,12 +318,6 @@ test('background initializes through the Chromium extension API', async () => {
     update.addRules[2].action.redirect.url,
     'https://github.com/taichikuji/Linker/issues'
   );
-
-  await listeners.actionClicked({ url: 'https://example.com/path?q=1' });
-  assert.deepEqual(createdTabs, [{
-    active: true,
-    url: 'chrome-extension://linker/src/manager/manager.html#https%3A%2F%2Fexample.com%2Fpath%3Fq%3D1'
-  }]);
 });
 
 test('manager validates import and export through the Chromium extension API', async () => {
@@ -338,16 +352,21 @@ test('manager validates import and export through the Chromium extension API', a
   });
 });
 
-test('manager prefills and saves through the Chromium extension API', async () => {
+test('cold side panel consumes the current URL prefill and saves it', async () => {
   const sourceUrl = 'https://example.com/path?q=1';
   const result = runManager({}, {
-    hash: `#${encodeURIComponent(sourceUrl)}`
+    windowId: 9,
+    pendingPrefill: { id: 'prefill-1', url: sourceUrl }
   });
 
   await vm.runInContext('initialize()', result.context);
 
   const urlInput = result.elements.get('full-link');
   const shortcutInput = result.elements.get('go-link');
+  assert.deepEqual(result.runtimeMessages, [{
+    type: 'consume-prefill',
+    windowId: 9
+  }]);
   assert.equal(urlInput.value, sourceUrl);
   assert.equal(result.context.document.activeElement, result.elements.get('search'));
 
@@ -359,38 +378,69 @@ test('manager prefills and saves through the Chromium extension API', async () =
   });
 });
 
-test('toolbar click focuses an existing manager tab', async () => {
-  const managerUrl = 'chrome-extension://linker/src/manager/manager.html';
-  const result = runBackground([{
-    id: 7,
-    url: managerUrl,
-    windowId: 9
-  }]);
+test('toolbar click opens the side panel and stages the current URL', async () => {
+  const result = runBackground();
 
   await result.updated;
-  await result.listeners.actionClicked({});
+  await result.listeners.actionClicked({
+    windowId: 9,
+    url: 'https://example.com/current'
+  });
 
+  assert.deepEqual(result.openedPanels, [{ windowId: 9 }]);
+  assert.deepEqual(result.browserOperations.slice(0, 2), [
+    'sidePanel:open',
+    'session:set'
+  ]);
   assert.deepEqual(result.createdTabs, []);
-  assert.deepEqual(result.updatedTabs, [[7, { active: true }]]);
-  assert.deepEqual(result.focusedWindows, [[9, { focused: true }]]);
-  assert.deepEqual(result.sentMessages, [[7, { type: 'focus-search' }]]);
+  assert.deepEqual(result.getSessionEntries(), {
+    'side-panel-prefill:9': {
+      id: 'prefill-1',
+      url: 'https://example.com/current'
+    }
+  });
+  assert.deepEqual(result.runtimeMessages, [{
+    type: 'prefill-url',
+    id: 'prefill-1',
+    windowId: 9,
+    url: 'https://example.com/current'
+  }]);
 });
 
-test('toolbar click prefills an existing manager from the current page', async () => {
-  const managerUrl = 'chrome-extension://linker/src/manager/manager.html';
-  const result = runBackground([{ id: 7, url: managerUrl, windowId: 9 }]);
+test('toolbar click clears stale prefill for non-web pages', async () => {
+  const result = runBackground({
+    sessionEntries: {
+      'side-panel-prefill:9': { id: 'stale', url: 'https://example.com/old' }
+    }
+  });
 
   await result.updated;
-  await result.listeners.actionClicked({ url: 'https://example.com/current' });
+  await result.listeners.actionClicked({ windowId: 9, url: 'chrome://extensions' });
 
-  assert.deepEqual(result.sentMessages, [[7, {
-    type: 'prefill-url',
-    url: 'https://example.com/current'
-  }]]);
+  assert.deepEqual(result.openedPanels, [{ windowId: 9 }]);
+  assert.deepEqual(result.getSessionEntries(), {});
+  assert.deepEqual(result.runtimeMessages, [{ type: 'focus-search', windowId: 9 }]);
+});
+
+test('manager can consume a pending side-panel prefill once', async () => {
+  const result = runBackground({
+    sessionEntries: {
+      'side-panel-prefill:9': { id: 'prefill-1', url: 'https://example.com/current' }
+    }
+  });
+  await result.updated;
+
+  const prefill = await sendRuntimeMessage(result.listeners.runtimeMessage, {
+    type: 'consume-prefill',
+    windowId: 9
+  });
+
+  assert.deepEqual(prefill, { id: 'prefill-1', url: 'https://example.com/current' });
+  assert.deepEqual(result.getSessionEntries(), {});
 });
 
 test('routing failures are reported to the manager', async () => {
-  const result = runBackground([], { failRuleUpdateAt: 2 });
+  const result = runBackground({ failRuleUpdateAt: 2 });
   await result.updated;
 
   result.listeners.storageChanged({ gh: { newValue: {} } }, 'sync');
@@ -431,18 +481,61 @@ test('manager displays background routing failures', async () => {
   assert.equal(result.elements.get('toast').dataset.type, 'error');
 });
 
-test('existing manager prefills the current URL while returning focus to search', async () => {
+test('open side panel prefills its window while returning focus to search', async () => {
   const result = runManager();
   await vm.runInContext('initialize()', result.context);
   result.elements.get('go-link').focus();
 
   result.listeners.runtimeMessage({
     type: 'prefill-url',
+    id: 'prefill-2',
+    windowId: 9,
     url: 'https://example.com/current'
   });
+  result.listeners.runtimeMessage({
+    type: 'prefill-url',
+    id: 'prefill-2',
+    windowId: 9,
+    url: 'https://example.com/current'
+  });
+  await new Promise(resolve => setImmediate(resolve));
 
   assert.equal(result.elements.get('full-link').value, 'https://example.com/current');
   assert.equal(result.context.document.activeElement, result.elements.get('search'));
+  assert.deepEqual(result.runtimeMessages, [
+    { type: 'consume-prefill', windowId: 9 },
+    { type: 'consume-prefill', windowId: 9 }
+  ]);
+});
+
+test('side panel ignores other windows and preserves an existing draft', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  result.elements.get('full-link').value = 'https://example.com/draft';
+
+  result.listeners.runtimeMessage({
+    type: 'prefill-url',
+    id: 'wrong-window',
+    windowId: 10,
+    url: 'https://example.com/ignored'
+  });
+  result.listeners.runtimeMessage({
+    type: 'prefill-url',
+    id: 'prefill-2',
+    windowId: 9,
+    url: 'https://example.com/current'
+  });
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(result.elements.get('full-link').value, 'https://example.com/draft');
+  assert.equal(
+    result.elements.get('toast-message').textContent,
+    'Current shortcut draft preserved.'
+  );
+  assert.deepEqual(result.runtimeMessages, [
+    { type: 'consume-prefill', windowId: 9 },
+    { type: 'consume-prefill', windowId: 9 }
+  ]);
 });
 
 test('manager rejects sync items that exceed the per-item quota', async () => {
@@ -462,10 +555,17 @@ test('manifest defines a Chromium MV3 service worker', () => {
   const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 
   assert.equal(manifest.manifest_version, 3);
+  assert.equal(manifest.version, '2.1.0');
   assert.equal(
     manifest.background.service_worker,
     'src/background/service-worker.js'
   );
   assert.equal(manifest.action.default_popup, undefined);
+  assert.equal(manifest.minimum_chrome_version, '116');
+  assert.equal(
+    manifest.side_panel.default_path,
+    'src/manager/manager.html'
+  );
+  assert.equal(manifest.permissions.includes('sidePanel'), true);
   assert.equal(manifest.permissions.includes('unlimitedStorage'), false);
 });

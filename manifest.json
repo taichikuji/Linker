@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Linker",
-  "version": "2.0.0",
+  "version": "2.1.0",
+  "minimum_chrome_version": "116",
   "description": "Create personal go/ shortcuts for the websites you use most.",
   "homepage_url": "https://github.com/taichikuji/Linker",
   "icons": {
@@ -13,7 +14,8 @@
   "permissions": [
     "storage",
     "tabs",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "sidePanel"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -27,6 +29,9 @@
       "16": "assets/icon_16.png",
       "32": "assets/icon_32.png"
     }
+  },
+  "side_panel": {
+    "default_path": "src/manager/manager.html"
   },
   "background": {
     "service_worker": "src/background/service-worker.js"
