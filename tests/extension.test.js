@@ -380,6 +380,10 @@ test('manager preserves its compact v2 visual identity in the side panel', () =>
   assert.doesNotMatch(managerHtml, /class="disclosure-marker"/);
   assert.match(
     managerCss,
+    /\.shortcut-panel,\s*\.editor-panel\s*{[^}]*overflow:\s*clip;/s
+  );
+  assert.match(
+    managerCss,
     /\.panel-summary\s*{[^}]*padding:\s*12px 20px;/s
   );
   assert.match(
