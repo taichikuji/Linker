@@ -24,7 +24,6 @@ const state = {
 
 const elements = {
   search: document.getElementById('search'),
-  shortcutSection: document.getElementById('shortcut-section'),
   capacityWarning: document.getElementById('capacity-warning'),
   itemList: document.getElementById('item-list'),
   emptyState: document.getElementById('empty-state'),
@@ -64,7 +63,9 @@ chrome.runtime.onMessage.addListener(message => {
   const targetsThisWindow = message?.windowId === undefined
     || message.windowId === state.windowId;
 
-  if (message?.type === 'focus-search' && targetsThisWindow) focusSearch();
+  if (message?.type === 'focus-search' && targetsThisWindow) {
+    focusSearch();
+  }
   if (message?.type === 'prefill-url' && acceptPrefill(message)) {
     focusSearch();
     chrome.runtime.sendMessage({
@@ -111,8 +112,6 @@ function acceptPrefill(prefill) {
 }
 
 function focusSearch() {
-  elements.shortcutSection.open = true;
-  elements.addSection.open = false;
   elements.search.focus();
   elements.search.select();
 }
@@ -130,12 +129,6 @@ function prefillSourceUrl(url) {
 }
 
 function setupEventListeners() {
-  elements.shortcutSection.addEventListener('toggle', () => {
-    if (elements.shortcutSection.open) elements.addSection.open = false;
-  });
-  elements.addSection.addEventListener('toggle', () => {
-    if (elements.addSection.open) elements.shortcutSection.open = false;
-  });
   elements.search.addEventListener('input', renderEntries);
   elements.search.addEventListener('keydown', event => {
     if (event.key === 'Enter') elements.itemList.querySelector('.shortcut-open')?.click();
@@ -297,7 +290,6 @@ function startEditing(shortcut) {
   elements.saveButton.textContent = 'Save changes';
   elements.cancelEditButton.hidden = false;
   updateVariableFields();
-  elements.shortcutSection.open = false;
   elements.addSection.open = true;
   elements.urlInput.focus();
 }
