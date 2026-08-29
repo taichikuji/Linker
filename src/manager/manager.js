@@ -17,7 +17,6 @@ const state = {
   entries: {},
   editingShortcut: null,
   windowId: null,
-  lastPrefillId: null,
   toastTimeout: null,
   pendingConfirmation: null
 };
@@ -60,20 +59,8 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 });
 
 chrome.runtime.onMessage.addListener(message => {
-  const targetsThisWindow = message?.windowId === undefined
-    || message.windowId === state.windowId;
-
-  if (message?.type === 'focus-search' && targetsThisWindow) {
-    elements.addSection.open = true;
+  if (message?.type === 'focus-search' && message.windowId === state.windowId) {
     focusSearch();
-  }
-  if (message?.type === 'prefill-url' && acceptPrefill(message)) {
-    elements.addSection.open = true;
-    focusSearch();
-    chrome.runtime.sendMessage({
-      type: 'consume-prefill',
-      windowId: state.windowId
-    }).catch(() => {});
   }
   if (message?.type === 'rule-update-failed') {
     showToast('Shortcuts were saved, but browser routing could not be updated.', 'error');
@@ -82,52 +69,27 @@ chrome.runtime.onMessage.addListener(message => {
 
 async function initialize() {
   setupEventListeners();
-  await loadPendingPrefill();
+  state.windowId = (await chrome.windows.getCurrent()).id;
   await loadEntries();
   focusSearch();
 }
 
-async function loadPendingPrefill() {
+async function prefillActiveTab() {
+  if (state.editingShortcut || elements.urlInput.value || elements.shortcutInput.value) return;
+
   try {
-    const currentWindow = await chrome.windows.getCurrent();
-    state.windowId = currentWindow.id;
-    const prefill = await chrome.runtime.sendMessage({
-      type: 'consume-prefill',
-      windowId: state.windowId
-    });
-    acceptPrefill(prefill);
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!isValidTargetUrl(tab?.url)) return;
+    elements.urlInput.value = tab.url;
+    updateVariableFields();
   } catch (error) {
-    console.error('Error loading side panel prefill:', error);
+    console.error('Error reading the current tab:', error);
   }
-}
-
-function acceptPrefill(prefill) {
-  if (!prefill || typeof prefill.id !== 'string' || !isValidTargetUrl(prefill.url)) {
-    return false;
-  }
-  if (prefill.id === state.lastPrefillId) return false;
-  if (prefill.windowId !== undefined && prefill.windowId !== state.windowId) return false;
-
-  state.lastPrefillId = prefill.id;
-  prefillSourceUrl(prefill.url);
-  return true;
 }
 
 function focusSearch() {
   elements.search.focus();
   elements.search.select();
-}
-
-function prefillSourceUrl(url) {
-  if (!isValidTargetUrl(url)) return;
-
-  if (state.editingShortcut || elements.urlInput.value || elements.shortcutInput.value) {
-    showToast('Current shortcut draft preserved.', 'error');
-  } else {
-    elements.urlInput.value = url;
-    updateVariableFields();
-  }
-
 }
 
 function setupEventListeners() {
@@ -140,6 +102,7 @@ function setupEventListeners() {
     return saveShortcut();
   });
   elements.urlInput.addEventListener('input', updateVariableFields);
+  elements.addSection.addEventListener('toggle', () => elements.addSection.open && prefillActiveTab());
   elements.cancelEditButton.addEventListener('click', resetForm);
   elements.helpButton.addEventListener('click', openHelp);
   elements.importButton.addEventListener('click', () => elements.fileInput.click());
@@ -305,7 +268,6 @@ function resetForm() {
   elements.saveButton.textContent = 'Save shortcut';
   elements.cancelEditButton.hidden = true;
   updateVariableFields();
-  focusSearch();
 }
 
 function updateVariableFields() {

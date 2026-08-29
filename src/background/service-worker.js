@@ -1,7 +1,6 @@
 // Constants and Configuration
 const CONFIG = {
   STORAGE_NAMESPACE: 'sync',
-  PREFILL_KEY_PREFIX: 'side-panel-prefill:',
   ALLOWED_PROTOCOLS: ['http:', 'https:'],
   RESOURCE_TYPES: ['main_frame'],
   VARIABLE_TOKEN: '{*}'
@@ -139,42 +138,17 @@ function scheduleRuleUpdate() {
   return next;
 }
 
-async function consumePendingPrefill(windowId) {
-  if (!Number.isInteger(windowId)) return null;
-
-  const key = `${CONFIG.PREFILL_KEY_PREFIX}${windowId}`;
-  const stored = await chrome.storage.session.get(key);
-  await chrome.storage.session.remove(key);
-
-  const prefill = stored[key];
-  return prefill
-    && typeof prefill.id === 'string'
-    && isValidTargetUrl(prefill.url)
-    ? prefill
-    : null;
-}
-
 async function openSidePanel(sourceTab) {
   try {
     if (!Number.isInteger(sourceTab?.windowId)) {
       throw new Error('The toolbar action did not provide a browser window.');
     }
 
-    const windowId = sourceTab.windowId;
-    const prefillKey = `${CONFIG.PREFILL_KEY_PREFIX}${windowId}`;
-    const sourceUrl = isValidTargetUrl(sourceTab?.url) ? sourceTab.url : '';
-    await chrome.sidePanel.open({ windowId });
-
-    let message = { type: 'focus-search', windowId };
-    if (sourceUrl) {
-      const prefill = { id: crypto.randomUUID(), url: sourceUrl };
-      await chrome.storage.session.set({ [prefillKey]: prefill });
-      message = { type: 'prefill-url', windowId, ...prefill };
-    } else {
-      await chrome.storage.session.remove(prefillKey);
-    }
-
-    await chrome.runtime.sendMessage(message).catch(() => {});
+    await chrome.sidePanel.open({ windowId: sourceTab.windowId });
+    await chrome.runtime.sendMessage({
+      type: 'focus-search',
+      windowId: sourceTab.windowId
+    }).catch(() => {});
   } catch (error) {
     console.error('Error opening Linker side panel:', error);
   }
@@ -183,18 +157,6 @@ async function openSidePanel(sourceTab) {
 chrome.runtime.onInstalled.addListener(() => scheduleRuleUpdate().catch(() => {}));
 chrome.runtime.onStartup.addListener(() => scheduleRuleUpdate().catch(() => {}));
 chrome.action.onClicked.addListener(openSidePanel);
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type !== 'consume-prefill') return undefined;
-
-  consumePendingPrefill(message.windowId)
-    .then(sendResponse)
-    .catch(error => {
-      console.error('Error consuming side panel prefill:', error);
-      sendResponse(null);
-    });
-  return true;
-});
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === CONFIG.STORAGE_NAMESPACE && Object.keys(changes).length > 0) {
