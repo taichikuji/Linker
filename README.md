@@ -4,7 +4,7 @@ A small browser extension for creating personal URL shortcuts.
 
 ## Installation
 
-Linker supports Chromium-based desktop browsers, including Google Chrome,
+Linker supports Chromium 116 or newer on desktop, including Google Chrome,
 Brave, Microsoft Edge, Opera, Vivaldi, and compatible Chromium forks.
 
 Open your browser's extensions page (for example, `chrome://extensions`,
@@ -12,6 +12,11 @@ Open your browser's extensions page (for example, `chrome://extensions`,
 **Load unpacked**, and select this directory.
 
 Open the browser's extensions menu to pin Linker to the toolbar.
+
+Click Linker's toolbar icon to open the shortcut manager in the browser's side
+panel. The panel stays available beside the current page until you hide it,
+and opening **Add new shortcut** offers the active page as a new shortcut
+destination without overwriting an unfinished draft.
 
 ## Why is there no Firefox build?
 
@@ -34,10 +39,10 @@ node --test
 
 The tests execute the real background and manager scripts against Chromium's
 standard `chrome.*` extension API namespace; despite its name, that namespace
-is shared by compatible Chromium-based browsers. Before releasing, create
-direct and parameterized shortcuts in Chrome and at least one other
-Chromium-based browser such as Brave or Edge, verify both redirect, then restart
-each browser and verify the redirects again.
+is shared by compatible Chromium-based browsers. Before releasing, load Linker
+in current Chrome and Brave, verify the side panel and its URL prefill at narrow
+and wide widths, then create direct and parameterized shortcuts, verify both
+redirect, restart each browser, and verify the redirects again.
 
 ## Description
 
