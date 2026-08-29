@@ -13,6 +13,10 @@ const managerSource = readFileSync(
   join(root, 'src/manager/manager.js'),
   'utf8'
 );
+const managerHtml = readFileSync(
+  join(root, 'src/manager/manager.html'),
+  'utf8'
+);
 
 const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -352,6 +356,18 @@ test('manager validates import and export through the Chromium extension API', a
   });
 });
 
+test('manager exposes shortcuts and editor as native disclosures', () => {
+  assert.match(
+    managerHtml,
+    /<details id="shortcut-section" class="shortcut-panel" open>/
+  );
+  assert.match(
+    managerHtml,
+    /<details id="add-section" class="editor-panel">/
+  );
+  assert.equal((managerHtml.match(/<summary class="panel-summary">/g) ?? []).length, 2);
+});
+
 test('cold side panel consumes the current URL prefill and saves it', async () => {
   const sourceUrl = 'https://example.com/path?q=1';
   const result = runManager({}, {
@@ -369,13 +385,19 @@ test('cold side panel consumes the current URL prefill and saves it', async () =
   }]);
   assert.equal(urlInput.value, sourceUrl);
   assert.equal(result.context.document.activeElement, result.elements.get('search'));
+  assert.equal(result.elements.get('shortcut-section').open, true);
+  assert.equal(result.elements.get('add-section').open, false);
 
+  result.elements.get('shortcut-section').open = false;
+  result.elements.get('add-section').open = true;
   shortcutInput.value = 'EXAMPLE';
   await result.elements.get('editor-form').dispatch('submit');
 
   assert.deepEqual(result.getEntries(), {
     example: { url: sourceUrl }
   });
+  assert.equal(result.elements.get('shortcut-section').open, true);
+  assert.equal(result.elements.get('add-section').open, false);
 });
 
 test('toolbar click opens the side panel and stages the current URL', async () => {
@@ -466,6 +488,45 @@ test('manager confirms normalized import replacements', async () => {
   await importing;
 
   assert.deepEqual(result.getEntries(), { gh: { url: 'https://example.com/' } });
+});
+
+test('editing opens the editor and cancel returns to shortcuts', async () => {
+  const result = runManager({ gh: { url: 'https://github.com/' } });
+  const shortcutSection = result.elements.get('shortcut-section');
+  const editorSection = result.elements.get('add-section');
+  shortcutSection.open = true;
+
+  await vm.runInContext('initialize()', result.context);
+  vm.runInContext("startEditing('gh')", result.context);
+
+  assert.equal(shortcutSection.open, false);
+  assert.equal(editorSection.open, true);
+  assert.equal(result.context.document.activeElement, result.elements.get('full-link'));
+
+  await result.elements.get('cancel-edit').dispatch('click');
+
+  assert.equal(shortcutSection.open, true);
+  assert.equal(editorSection.open, false);
+  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+});
+
+test('opening either disclosure collapses the other without clearing drafts', async () => {
+  const result = runManager();
+  const shortcutSection = result.elements.get('shortcut-section');
+  const editorSection = result.elements.get('add-section');
+  shortcutSection.open = true;
+
+  await vm.runInContext('initialize()', result.context);
+  result.elements.get('full-link').value = 'https://example.com/draft';
+
+  editorSection.open = true;
+  await editorSection.dispatch('toggle');
+  assert.equal(shortcutSection.open, false);
+
+  shortcutSection.open = true;
+  await shortcutSection.dispatch('toggle');
+  assert.equal(editorSection.open, false);
+  assert.equal(result.elements.get('full-link').value, 'https://example.com/draft');
 });
 
 test('manager displays background routing failures', async () => {

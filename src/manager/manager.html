@@ -58,25 +58,32 @@
     </header>
 
     <main class="manager-grid">
-      <section class="shortcut-panel" aria-label="Saved shortcuts">
-        <label class="search-field" for="search">
-          <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
-          <input id="search" type="search" autocomplete="off" placeholder="Search shortcuts">
-        </label>
+      <details id="shortcut-section" class="shortcut-panel" open>
+        <summary class="panel-summary">
+          <span class="summary-title">Saved shortcuts</span>
+          <span class="disclosure-marker" aria-hidden="true">›</span>
+        </summary>
 
-        <p id="capacity-warning" class="capacity-warning" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+        <div class="shortcut-content">
+          <label class="search-field" for="search">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+            <input id="search" type="search" autocomplete="off" placeholder="Search shortcuts">
+          </label>
 
-        <div class="shortcuts">
-          <ul id="item-list" class="shortcut-list"></ul>
-          <p id="empty-state" class="empty-state" hidden></p>
+          <p id="capacity-warning" class="capacity-warning" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+
+          <div class="shortcuts">
+            <ul id="item-list" class="shortcut-list"></ul>
+            <p id="empty-state" class="empty-state" hidden></p>
+          </div>
         </div>
-      </section>
+      </details>
 
-      <section id="add-section" class="editor-panel" aria-labelledby="form-title">
-        <div class="editor-heading">
-          <p>Shortcut editor</p>
-          <h2 id="form-title">Add new shortcut</h2>
-        </div>
+      <details id="add-section" class="editor-panel">
+        <summary class="panel-summary">
+          <span id="form-title" class="summary-title">Add new shortcut</span>
+          <span class="disclosure-marker" aria-hidden="true">›</span>
+        </summary>
         <form id="editor-form" class="add-form" novalidate>
           <div class="field-label">
             <label for="full-link">Destination URL</label>
@@ -103,7 +110,7 @@
             <button id="save" class="primary-button" type="submit">Save shortcut</button>
           </div>
         </form>
-      </section>
+      </details>
     </main>
   </div>
 
