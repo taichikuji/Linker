@@ -360,27 +360,32 @@ test('manager validates import and export through the Chromium extension API', a
   });
 });
 
-test('manager exposes shortcuts and editor as native disclosures', () => {
+test('manager keeps shortcuts visible and the editor open by default', () => {
   assert.match(
     managerHtml,
-    /<details id="shortcut-section" class="shortcut-panel" open>/
+    /<section id="shortcut-section" class="shortcut-panel" aria-label="Saved shortcuts">/
   );
+  assert.doesNotMatch(managerHtml, /<details id="shortcut-section"/);
   assert.match(
     managerHtml,
-    /<details id="add-section" class="editor-panel">/
+    /<details id="add-section" class="editor-panel" open>/
   );
-  assert.equal((managerHtml.match(/<summary class="panel-summary">/g) ?? []).length, 2);
+  assert.equal((managerHtml.match(/<summary class="panel-summary">/g) ?? []).length, 1);
 });
 
 test('manager preserves its compact v2 visual identity in the side panel', () => {
   assert.match(managerHtml, /Your shortcuts, one hop away/);
   assert.match(managerCss, /\.brand p\s*{\s*display:\s*none;/);
   assert.match(managerHtml, /<symbol id="icon-down"/);
-  assert.equal((managerHtml.match(/<use href="#icon-down"><\/use>/g) ?? []).length, 2);
+  assert.equal((managerHtml.match(/<use href="#icon-down"><\/use>/g) ?? []).length, 1);
   assert.doesNotMatch(managerHtml, /class="disclosure-marker"/);
   assert.match(
     managerCss,
     /\.shortcut-panel,\s*\.editor-panel\s*{[^}]*overflow:\s*clip;/s
+  );
+  assert.match(
+    managerCss,
+    /\.shortcut-panel\s*{[^}]*display:\s*flex;[^}]*flex:\s*1 1 auto;/s
   );
   assert.match(
     managerCss,
@@ -398,6 +403,8 @@ test('cold side panel consumes the current URL prefill and saves it', async () =
     windowId: 9,
     pendingPrefill: { id: 'prefill-1', url: sourceUrl }
   });
+  const editorSection = result.elements.get('add-section');
+  editorSection.open = true;
 
   await vm.runInContext('initialize()', result.context);
 
@@ -409,19 +416,15 @@ test('cold side panel consumes the current URL prefill and saves it', async () =
   }]);
   assert.equal(urlInput.value, sourceUrl);
   assert.equal(result.context.document.activeElement, result.elements.get('search'));
-  assert.equal(result.elements.get('shortcut-section').open, true);
-  assert.equal(result.elements.get('add-section').open, false);
+  assert.equal(editorSection.open, true);
 
-  result.elements.get('shortcut-section').open = false;
-  result.elements.get('add-section').open = true;
   shortcutInput.value = 'EXAMPLE';
   await result.elements.get('editor-form').dispatch('submit');
 
   assert.deepEqual(result.getEntries(), {
     example: { url: sourceUrl }
   });
-  assert.equal(result.elements.get('shortcut-section').open, true);
-  assert.equal(result.elements.get('add-section').open, false);
+  assert.equal(editorSection.open, true);
 });
 
 test('toolbar click opens the side panel and stages the current URL', async () => {
@@ -514,43 +517,21 @@ test('manager confirms normalized import replacements', async () => {
   assert.deepEqual(result.getEntries(), { gh: { url: 'https://example.com/' } });
 });
 
-test('editing opens the editor and cancel returns to shortcuts', async () => {
+test('editing opens the editor and cancel returns focus to search', async () => {
   const result = runManager({ gh: { url: 'https://github.com/' } });
-  const shortcutSection = result.elements.get('shortcut-section');
   const editorSection = result.elements.get('add-section');
-  shortcutSection.open = true;
+  editorSection.open = false;
 
   await vm.runInContext('initialize()', result.context);
   vm.runInContext("startEditing('gh')", result.context);
 
-  assert.equal(shortcutSection.open, false);
   assert.equal(editorSection.open, true);
   assert.equal(result.context.document.activeElement, result.elements.get('full-link'));
 
   await result.elements.get('cancel-edit').dispatch('click');
 
-  assert.equal(shortcutSection.open, true);
-  assert.equal(editorSection.open, false);
+  assert.equal(editorSection.open, true);
   assert.equal(result.context.document.activeElement, result.elements.get('search'));
-});
-
-test('opening either disclosure collapses the other without clearing drafts', async () => {
-  const result = runManager();
-  const shortcutSection = result.elements.get('shortcut-section');
-  const editorSection = result.elements.get('add-section');
-  shortcutSection.open = true;
-
-  await vm.runInContext('initialize()', result.context);
-  result.elements.get('full-link').value = 'https://example.com/draft';
-
-  editorSection.open = true;
-  await editorSection.dispatch('toggle');
-  assert.equal(shortcutSection.open, false);
-
-  shortcutSection.open = true;
-  await shortcutSection.dispatch('toggle');
-  assert.equal(editorSection.open, false);
-  assert.equal(result.elements.get('full-link').value, 'https://example.com/draft');
 });
 
 test('manager displays background routing failures', async () => {

@@ -180,15 +180,24 @@ button {
 .shortcut-panel,
 .editor-panel {
   min-width: 0;
-  flex: 0 0 auto;
   overflow: clip;
 }
 
-.shortcut-panel[open],
-.editor-panel[open] {
+.shortcut-panel {
   display: flex;
   min-height: 0;
   flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.editor-panel {
+  max-height: 100%;
+  flex: 0 0 auto;
+}
+
+.editor-panel[open] {
+  display: flex;
+  min-height: 0;
   flex-direction: column;
 }
 
@@ -460,7 +469,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
 .add-form {
   display: flex;
   min-height: 0;
-  flex: 1;
+  flex: 1 1 auto;
   flex-direction: column;
   padding: 8px 20px 20px;
   overflow-y: auto;
