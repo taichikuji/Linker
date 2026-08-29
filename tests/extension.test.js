@@ -534,6 +534,21 @@ test('editing opens the editor and cancel returns focus to search', async () => 
   assert.equal(result.context.document.activeElement, result.elements.get('search'));
 });
 
+test('toolbar click reopens the editor without clearing drafts', async () => {
+  const result = runManager();
+  const editorSection = result.elements.get('add-section');
+
+  await vm.runInContext('initialize()', result.context);
+  result.elements.get('full-link').value = 'https://example.com/draft';
+  editorSection.open = false;
+
+  result.listeners.runtimeMessage({ type: 'focus-search', windowId: 9 });
+
+  assert.equal(editorSection.open, true);
+  assert.equal(result.elements.get('full-link').value, 'https://example.com/draft');
+  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+});
+
 test('manager displays background routing failures', async () => {
   const result = runManager();
   await vm.runInContext('initialize()', result.context);
@@ -551,6 +566,7 @@ test('open side panel prefills its window while returning focus to search', asyn
   const result = runManager();
   await vm.runInContext('initialize()', result.context);
   result.elements.get('go-link').focus();
+  result.elements.get('add-section').open = false;
 
   result.listeners.runtimeMessage({
     type: 'prefill-url',
@@ -567,6 +583,7 @@ test('open side panel prefills its window while returning focus to search', asyn
   await new Promise(resolve => setImmediate(resolve));
 
   assert.equal(result.elements.get('full-link').value, 'https://example.com/current');
+  assert.equal(result.elements.get('add-section').open, true);
   assert.equal(result.context.document.activeElement, result.elements.get('search'));
   assert.deepEqual(result.runtimeMessages, [
     { type: 'consume-prefill', windowId: 9 },

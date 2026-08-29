@@ -64,9 +64,11 @@ chrome.runtime.onMessage.addListener(message => {
     || message.windowId === state.windowId;
 
   if (message?.type === 'focus-search' && targetsThisWindow) {
+    elements.addSection.open = true;
     focusSearch();
   }
   if (message?.type === 'prefill-url' && acceptPrefill(message)) {
+    elements.addSection.open = true;
     focusSearch();
     chrome.runtime.sendMessage({
       type: 'consume-prefill',
