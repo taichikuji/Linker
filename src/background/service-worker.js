@@ -1,14 +1,13 @@
 // Constants and Configuration
 const CONFIG = {
-  MANAGER_PATH: 'src/manager/manager.html',
   STORAGE_NAMESPACE: 'sync',
+  PREFILL_KEY_PREFIX: 'side-panel-prefill:',
   ALLOWED_PROTOCOLS: ['http:', 'https:'],
   RESOURCE_TYPES: ['main_frame'],
   VARIABLE_TOKEN: '{*}'
 };
 
 const MAX_REGEX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
-const MANAGER_URL = chrome.runtime.getURL(CONFIG.MANAGER_PATH);
 let ruleSyncQueue = Promise.resolve();
 
 /**
@@ -140,34 +139,62 @@ function scheduleRuleUpdate() {
   return next;
 }
 
-async function openManager(sourceTab) {
-  try {
-    const tabs = await chrome.tabs.query({});
-    const existing = tabs.find(tab => tab.url?.startsWith(MANAGER_URL));
-    const sourceUrl = isValidTargetUrl(sourceTab?.url) ? sourceTab.url : '';
+async function consumePendingPrefill(windowId) {
+  if (!Number.isInteger(windowId)) return null;
 
-    if (existing) {
-      await chrome.tabs.update(existing.id, { active: true });
-      if (chrome.windows && existing.windowId !== undefined) {
-        await chrome.windows.update(existing.windowId, { focused: true });
-      }
-      const message = sourceUrl
-        ? { type: 'prefill-url', url: sourceUrl }
-        : { type: 'focus-search' };
-      await chrome.tabs.sendMessage(existing.id, message).catch(() => {});
-      return;
+  const key = `${CONFIG.PREFILL_KEY_PREFIX}${windowId}`;
+  const stored = await chrome.storage.session.get(key);
+  await chrome.storage.session.remove(key);
+
+  const prefill = stored[key];
+  return prefill
+    && typeof prefill.id === 'string'
+    && isValidTargetUrl(prefill.url)
+    ? prefill
+    : null;
+}
+
+async function openSidePanel(sourceTab) {
+  try {
+    if (!Number.isInteger(sourceTab?.windowId)) {
+      throw new Error('The toolbar action did not provide a browser window.');
     }
 
-    const url = sourceUrl ? `${MANAGER_URL}#${encodeURIComponent(sourceUrl)}` : MANAGER_URL;
-    await chrome.tabs.create({ active: true, url });
+    const windowId = sourceTab.windowId;
+    const prefillKey = `${CONFIG.PREFILL_KEY_PREFIX}${windowId}`;
+    const sourceUrl = isValidTargetUrl(sourceTab?.url) ? sourceTab.url : '';
+    await chrome.sidePanel.open({ windowId });
+
+    let message = { type: 'focus-search', windowId };
+    if (sourceUrl) {
+      const prefill = { id: crypto.randomUUID(), url: sourceUrl };
+      await chrome.storage.session.set({ [prefillKey]: prefill });
+      message = { type: 'prefill-url', windowId, ...prefill };
+    } else {
+      await chrome.storage.session.remove(prefillKey);
+    }
+
+    await chrome.runtime.sendMessage(message).catch(() => {});
   } catch (error) {
-    console.error('Error opening manager:', error);
+    console.error('Error opening Linker side panel:', error);
   }
 }
 
 chrome.runtime.onInstalled.addListener(() => scheduleRuleUpdate().catch(() => {}));
 chrome.runtime.onStartup.addListener(() => scheduleRuleUpdate().catch(() => {}));
-chrome.action.onClicked.addListener(openManager);
+chrome.action.onClicked.addListener(openSidePanel);
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type !== 'consume-prefill') return undefined;
+
+  consumePendingPrefill(message.windowId)
+    .then(sendResponse)
+    .catch(error => {
+      console.error('Error consuming side panel prefill:', error);
+      sendResponse(null);
+    });
+  return true;
+});
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === CONFIG.STORAGE_NAMESPACE && Object.keys(changes).length > 0) {
