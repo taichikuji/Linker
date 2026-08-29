@@ -197,7 +197,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 20px;
+  padding: 12px 20px;
   cursor: pointer;
   list-style: none;
 }
@@ -217,22 +217,22 @@ details[open] > .panel-summary {
 .summary-title {
   min-width: 0;
   overflow: hidden;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.disclosure-marker {
+.disclosure-icon {
+  width: 12px;
+  height: 12px;
   flex: 0 0 auto;
   color: var(--muted);
-  font-size: 24px;
-  line-height: 1;
-  transition: transform 0.15s;
+  transition: transform 0.2s;
 }
 
-details[open] > .panel-summary .disclosure-marker {
-  transform: rotate(90deg);
+details:not([open]) > .panel-summary .disclosure-icon {
+  transform: rotate(-90deg);
 }
 
 .shortcut-content {
@@ -667,10 +667,6 @@ details[open] > .panel-summary .disclosure-marker {
   .header {
     align-items: flex-start;
     gap: 12px;
-  }
-
-  .brand p {
-    display: none;
   }
 }
 

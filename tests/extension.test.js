@@ -17,6 +17,10 @@ const managerHtml = readFileSync(
   join(root, 'src/manager/manager.html'),
   'utf8'
 );
+const managerCss = readFileSync(
+  join(root, 'src/manager/manager.css'),
+  'utf8'
+);
 
 const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -366,6 +370,22 @@ test('manager exposes shortcuts and editor as native disclosures', () => {
     /<details id="add-section" class="editor-panel">/
   );
   assert.equal((managerHtml.match(/<summary class="panel-summary">/g) ?? []).length, 2);
+});
+
+test('manager preserves its compact v2 visual identity in the side panel', () => {
+  assert.match(managerHtml, /Your shortcuts, one hop away/);
+  assert.doesNotMatch(managerCss, /\.brand p\s*{\s*display:\s*none;/);
+  assert.match(managerHtml, /<symbol id="icon-down"/);
+  assert.equal((managerHtml.match(/<use href="#icon-down"><\/use>/g) ?? []).length, 2);
+  assert.doesNotMatch(managerHtml, /class="disclosure-marker"/);
+  assert.match(
+    managerCss,
+    /\.panel-summary\s*{[^}]*padding:\s*12px 20px;/s
+  );
+  assert.match(
+    managerCss,
+    /\.summary-title\s*{[^}]*font-size:\s*14px;[^}]*font-weight:\s*600;/s
+  );
 });
 
 test('cold side panel consumes the current URL prefill and saves it', async () => {
