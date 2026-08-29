@@ -374,7 +374,7 @@ test('manager exposes shortcuts and editor as native disclosures', () => {
 
 test('manager preserves its compact v2 visual identity in the side panel', () => {
   assert.match(managerHtml, /Your shortcuts, one hop away/);
-  assert.doesNotMatch(managerCss, /\.brand p\s*{\s*display:\s*none;/);
+  assert.match(managerCss, /\.brand p\s*{\s*display:\s*none;/);
   assert.match(managerHtml, /<symbol id="icon-down"/);
   assert.equal((managerHtml.match(/<use href="#icon-down"><\/use>/g) ?? []).length, 2);
   assert.doesNotMatch(managerHtml, /class="disclosure-marker"/);

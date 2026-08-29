@@ -668,6 +668,10 @@ details:not([open]) > .panel-summary .disclosure-icon {
     align-items: flex-start;
     gap: 12px;
   }
+
+  .brand p {
+    display: none;
+  }
 }
 
 @media (hover: none) {
