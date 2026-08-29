@@ -1,6 +1,5 @@
 // Constants and Configuration
 const CONFIG = {
-  MANAGER_PATH: 'src/manager/manager.html',
   STORAGE_NAMESPACE: 'sync',
   ALLOWED_PROTOCOLS: ['http:', 'https:'],
   RESOURCE_TYPES: ['main_frame'],
@@ -8,7 +7,6 @@ const CONFIG = {
 };
 
 const MAX_REGEX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
-const MANAGER_URL = chrome.runtime.getURL(CONFIG.MANAGER_PATH);
 let ruleSyncQueue = Promise.resolve();
 
 /**
@@ -140,34 +138,25 @@ function scheduleRuleUpdate() {
   return next;
 }
 
-async function openManager(sourceTab) {
+async function openSidePanel(sourceTab) {
   try {
-    const tabs = await chrome.tabs.query({});
-    const existing = tabs.find(tab => tab.url?.startsWith(MANAGER_URL));
-    const sourceUrl = isValidTargetUrl(sourceTab?.url) ? sourceTab.url : '';
-
-    if (existing) {
-      await chrome.tabs.update(existing.id, { active: true });
-      if (chrome.windows && existing.windowId !== undefined) {
-        await chrome.windows.update(existing.windowId, { focused: true });
-      }
-      const message = sourceUrl
-        ? { type: 'prefill-url', url: sourceUrl }
-        : { type: 'focus-search' };
-      await chrome.tabs.sendMessage(existing.id, message).catch(() => {});
-      return;
+    if (!Number.isInteger(sourceTab?.windowId)) {
+      throw new Error('The toolbar action did not provide a browser window.');
     }
 
-    const url = sourceUrl ? `${MANAGER_URL}#${encodeURIComponent(sourceUrl)}` : MANAGER_URL;
-    await chrome.tabs.create({ active: true, url });
+    await chrome.sidePanel.open({ windowId: sourceTab.windowId });
+    await chrome.runtime.sendMessage({
+      type: 'focus-search',
+      windowId: sourceTab.windowId
+    }).catch(() => {});
   } catch (error) {
-    console.error('Error opening manager:', error);
+    console.error('Error opening Linker side panel:', error);
   }
 }
 
 chrome.runtime.onInstalled.addListener(() => scheduleRuleUpdate().catch(() => {}));
 chrome.runtime.onStartup.addListener(() => scheduleRuleUpdate().catch(() => {}));
-chrome.action.onClicked.addListener(openManager);
+chrome.action.onClicked.addListener(openSidePanel);
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === CONFIG.STORAGE_NAMESPACE && Object.keys(changes).length > 0) {

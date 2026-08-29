@@ -16,6 +16,7 @@ const SYNC_QUOTA_BYTES_PER_ITEM = chrome.storage.sync.QUOTA_BYTES_PER_ITEM ?? 81
 const state = {
   entries: {},
   editingShortcut: null,
+  windowId: null,
   toastTimeout: null,
   pendingConfirmation: null
 };
@@ -58,9 +59,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 });
 
 chrome.runtime.onMessage.addListener(message => {
-  if (message?.type === 'focus-search') focusSearch();
-  if (message?.type === 'prefill-url') {
-    prefillSourceUrl(message.url);
+  if (message?.type === 'focus-search' && message.windowId === state.windowId) {
     focusSearch();
   }
   if (message?.type === 'rule-update-failed') {
@@ -70,28 +69,27 @@ chrome.runtime.onMessage.addListener(message => {
 
 async function initialize() {
   setupEventListeners();
-  const sourceUrl = consumeSourceUrl();
+  state.windowId = (await chrome.windows.getCurrent()).id;
   await loadEntries();
-
-  if (sourceUrl) prefillSourceUrl(sourceUrl);
   focusSearch();
+}
+
+async function prefillActiveTab() {
+  if (state.editingShortcut || elements.urlInput.value || elements.shortcutInput.value) return;
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!isValidTargetUrl(tab?.url)) return;
+    elements.urlInput.value = tab.url;
+    updateVariableFields();
+  } catch (error) {
+    console.error('Error reading the current tab:', error);
+  }
 }
 
 function focusSearch() {
   elements.search.focus();
   elements.search.select();
-}
-
-function prefillSourceUrl(url) {
-  if (!isValidTargetUrl(url)) return;
-
-  if (state.editingShortcut || elements.urlInput.value || elements.shortcutInput.value) {
-    showToast('Current shortcut draft preserved.', 'error');
-  } else {
-    elements.urlInput.value = url;
-    updateVariableFields();
-  }
-
 }
 
 function setupEventListeners() {
@@ -104,25 +102,13 @@ function setupEventListeners() {
     return saveShortcut();
   });
   elements.urlInput.addEventListener('input', updateVariableFields);
+  elements.addSection.addEventListener('toggle', () => elements.addSection.open && prefillActiveTab());
   elements.cancelEditButton.addEventListener('click', resetForm);
   elements.helpButton.addEventListener('click', openHelp);
   elements.importButton.addEventListener('click', () => elements.fileInput.click());
   elements.fileInput.addEventListener('change', importShortcuts);
   elements.exportButton.addEventListener('click', exportShortcuts);
   elements.toastClose.addEventListener('click', hideToast);
-}
-
-function consumeSourceUrl() {
-  if (!location.hash) return '';
-
-  try {
-    const sourceUrl = decodeURIComponent(location.hash.slice(1));
-    history.replaceState(null, '', location.pathname);
-    return isValidTargetUrl(sourceUrl) ? sourceUrl : '';
-  } catch {
-    history.replaceState(null, '', location.pathname);
-    return '';
-  }
 }
 
 function isStoredEntry(value) {
@@ -269,8 +255,8 @@ function startEditing(shortcut) {
   elements.saveButton.textContent = 'Save changes';
   elements.cancelEditButton.hidden = false;
   updateVariableFields();
+  elements.addSection.open = true;
   elements.urlInput.focus();
-  elements.addSection.scrollIntoView({ block: 'nearest' });
 }
 
 function resetForm() {

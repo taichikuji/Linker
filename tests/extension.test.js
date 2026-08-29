@@ -13,6 +13,14 @@ const managerSource = readFileSync(
   join(root, 'src/manager/manager.js'),
   'utf8'
 );
+const managerHtml = readFileSync(
+  join(root, 'src/manager/manager.html'),
+  'utf8'
+);
+const managerCss = readFileSync(
+  join(root, 'src/manager/manager.css'),
+  'utf8'
+);
 
 const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -24,13 +32,11 @@ function eventSlot(listeners, name) {
   };
 }
 
-function runBackground(existingTabs = [], options = {}) {
+function runBackground(options = {}) {
   const listeners = {};
   const createdTabs = [];
-  const updatedTabs = [];
-  const sentMessages = [];
   const runtimeMessages = [];
-  const focusedWindows = [];
+  const openedPanels = [];
   const errors = [];
   let ruleUpdateCalls = 0;
   let resolveUpdate;
@@ -51,8 +57,8 @@ function runBackground(existingTabs = [], options = {}) {
       }
     },
     runtime: {
-      getURL: path => `chrome-extension://linker/${path}`,
       sendMessage: async message => runtimeMessages.push(clone(message)),
+      onMessage: eventSlot(listeners, 'runtimeMessage'),
       onInstalled: {
         addListener: listener => {
           listeners.installed = listener;
@@ -88,21 +94,14 @@ function runBackground(existingTabs = [], options = {}) {
         }
       }
     },
-    tabs: {
-      query: async () => existingTabs,
-      create: async options => {
-        createdTabs.push(JSON.parse(JSON.stringify(options)));
-      },
-      update: async (id, options) => {
-        updatedTabs.push([id, JSON.parse(JSON.stringify(options))]);
-      },
-      sendMessage: async (id, message) => {
-        sentMessages.push([id, JSON.parse(JSON.stringify(message))]);
+    sidePanel: {
+      open: async details => {
+        openedPanels.push(clone(details));
       }
     },
-    windows: {
-      update: async (id, options) => {
-        focusedWindows.push([id, JSON.parse(JSON.stringify(options))]);
+    tabs: {
+      create: async options => {
+        createdTabs.push(JSON.parse(JSON.stringify(options)));
       }
     }
   };
@@ -118,11 +117,9 @@ function runBackground(existingTabs = [], options = {}) {
     listeners,
     updated,
     createdTabs,
-    updatedTabs,
-    sentMessages,
     runtimeMessages,
     errors,
-    focusedWindows
+    openedPanels
   };
 }
 
@@ -130,6 +127,7 @@ function runManager(initialEntries = {}, options = {}) {
   const listeners = {};
   const elements = new Map();
   const openedTabs = [];
+  const tabQueries = [];
   let entries = clone(initialEntries);
 
   const document = {
@@ -192,7 +190,6 @@ function runManager(initialEntries = {}, options = {}) {
       replaceChildren(...children) {
         this.children = children;
       },
-      scrollIntoView() {},
       select() {},
       setAttribute(name, value) {
         this[name] = value;
@@ -236,7 +233,14 @@ function runManager(initialEntries = {}, options = {}) {
       onChanged: eventSlot(listeners, 'storageChanged')
     },
     tabs: {
+      query: async details => {
+        tabQueries.push(clone(details));
+        return options.activeTab ? [clone(options.activeTab)] : [];
+      },
       create: async details => openedTabs.push(clone(details))
+    },
+    windows: {
+      getCurrent: async () => ({ id: options.windowId ?? 9 })
     }
   };
 
@@ -247,11 +251,6 @@ function runManager(initialEntries = {}, options = {}) {
     clearTimeout() {},
     console,
     document,
-    history: { replaceState() {} },
-    location: {
-      hash: options.hash ?? '',
-      pathname: '/src/manager/manager.html'
-    },
     setTimeout: () => 0
   });
   vm.runInContext(managerSource, context);
@@ -261,12 +260,13 @@ function runManager(initialEntries = {}, options = {}) {
     elements,
     listeners,
     openedTabs,
+    tabQueries,
     getEntries: () => clone(entries)
   };
 }
 
 test('background initializes through the Chromium extension API', async () => {
-  const { listeners, updated, createdTabs } = runBackground();
+  const { listeners, updated } = runBackground();
   const update = await updated;
 
   assert.equal(typeof listeners.installed, 'function');
@@ -298,12 +298,6 @@ test('background initializes through the Chromium extension API', async () => {
     update.addRules[2].action.redirect.url,
     'https://github.com/taichikuji/Linker/issues'
   );
-
-  await listeners.actionClicked({ url: 'https://example.com/path?q=1' });
-  assert.deepEqual(createdTabs, [{
-    active: true,
-    url: 'chrome-extension://linker/src/manager/manager.html#https%3A%2F%2Fexample.com%2Fpath%3Fq%3D1'
-  }]);
 });
 
 test('manager validates import and export through the Chromium extension API', async () => {
@@ -338,18 +332,59 @@ test('manager validates import and export through the Chromium extension API', a
   });
 });
 
-test('manager prefills and saves through the Chromium extension API', async () => {
+test('manager keeps shortcuts visible and the editor collapsed by default', () => {
+  assert.match(
+    managerHtml,
+    /<section class="shortcut-panel" aria-label="Saved shortcuts">/
+  );
+  assert.doesNotMatch(managerHtml, /<details id="shortcut-section"/);
+  assert.match(
+    managerHtml,
+    /<details id="add-section" class="editor-panel">/
+  );
+  assert.equal((managerHtml.match(/<summary class="panel-summary">/g) ?? []).length, 1);
+});
+
+test('manager preserves its compact v2 visual identity in the side panel', () => {
+  assert.match(managerHtml, /Your shortcuts, one hop away/);
+  assert.match(managerCss, /\.brand p\s*{\s*display:\s*none;/);
+  assert.match(managerHtml, /<symbol id="icon-down"/);
+  assert.equal((managerHtml.match(/<use href="#icon-down"><\/use>/g) ?? []).length, 1);
+  assert.doesNotMatch(managerHtml, /class="disclosure-marker"/);
+  assert.match(
+    managerCss,
+    /\.shortcut-panel,\s*\.editor-panel\s*{[^}]*overflow:\s*clip;/s
+  );
+  assert.match(
+    managerCss,
+    /\.shortcut-panel\s*{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;/s
+  );
+  assert.match(
+    managerCss,
+    /\.panel-summary\s*{[^}]*padding:\s*12px 20px;/s
+  );
+  assert.match(
+    managerCss,
+    /\.summary-title\s*{[^}]*font-size:\s*14px;[^}]*font-weight:\s*600;/s
+  );
+});
+
+test('opening the editor reads the current URL and saves it', async () => {
   const sourceUrl = 'https://example.com/path?q=1';
   const result = runManager({}, {
-    hash: `#${encodeURIComponent(sourceUrl)}`
+    activeTab: { url: sourceUrl }
   });
+  const editorSection = result.elements.get('add-section');
 
   await vm.runInContext('initialize()', result.context);
+  editorSection.open = true;
+  await editorSection.dispatch('toggle');
 
   const urlInput = result.elements.get('full-link');
   const shortcutInput = result.elements.get('go-link');
+  assert.deepEqual(result.tabQueries, [{ active: true, currentWindow: true }]);
   assert.equal(urlInput.value, sourceUrl);
-  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+  assert.equal(editorSection.open, true);
 
   shortcutInput.value = 'EXAMPLE';
   await result.elements.get('editor-form').dispatch('submit');
@@ -357,40 +392,39 @@ test('manager prefills and saves through the Chromium extension API', async () =
   assert.deepEqual(result.getEntries(), {
     example: { url: sourceUrl }
   });
+  assert.equal(editorSection.open, true);
 });
 
-test('toolbar click focuses an existing manager tab', async () => {
-  const managerUrl = 'chrome-extension://linker/src/manager/manager.html';
-  const result = runBackground([{
-    id: 7,
-    url: managerUrl,
+test('toolbar click opens the side panel and focuses search', async () => {
+  const result = runBackground();
+
+  await result.updated;
+  await result.listeners.actionClicked({
+    windowId: 9,
+    url: 'https://example.com/current'
+  });
+
+  assert.deepEqual(result.openedPanels, [{ windowId: 9 }]);
+  assert.deepEqual(result.createdTabs, []);
+  assert.deepEqual(result.runtimeMessages, [{
+    type: 'focus-search',
     windowId: 9
   }]);
-
-  await result.updated;
-  await result.listeners.actionClicked({});
-
-  assert.deepEqual(result.createdTabs, []);
-  assert.deepEqual(result.updatedTabs, [[7, { active: true }]]);
-  assert.deepEqual(result.focusedWindows, [[9, { focused: true }]]);
-  assert.deepEqual(result.sentMessages, [[7, { type: 'focus-search' }]]);
 });
 
-test('toolbar click prefills an existing manager from the current page', async () => {
-  const managerUrl = 'chrome-extension://linker/src/manager/manager.html';
-  const result = runBackground([{ id: 7, url: managerUrl, windowId: 9 }]);
+test('opening the editor ignores internal browser URLs', async () => {
+  const result = runManager({}, { activeTab: { url: 'chrome://extensions' } });
+  await vm.runInContext('initialize()', result.context);
 
-  await result.updated;
-  await result.listeners.actionClicked({ url: 'https://example.com/current' });
+  const editorSection = result.elements.get('add-section');
+  editorSection.open = true;
+  await editorSection.dispatch('toggle');
 
-  assert.deepEqual(result.sentMessages, [[7, {
-    type: 'prefill-url',
-    url: 'https://example.com/current'
-  }]]);
+  assert.equal(result.elements.get('full-link').value, '');
 });
 
 test('routing failures are reported to the manager', async () => {
-  const result = runBackground([], { failRuleUpdateAt: 2 });
+  const result = runBackground({ failRuleUpdateAt: 2 });
   await result.updated;
 
   result.listeners.storageChanged({ gh: { newValue: {} } }, 'sync');
@@ -418,6 +452,39 @@ test('manager confirms normalized import replacements', async () => {
   assert.deepEqual(result.getEntries(), { gh: { url: 'https://example.com/' } });
 });
 
+test('editing opens the editor and cancel resets it', async () => {
+  const result = runManager({ gh: { url: 'https://github.com/' } });
+  const editorSection = result.elements.get('add-section');
+  editorSection.open = false;
+
+  await vm.runInContext('initialize()', result.context);
+  vm.runInContext("startEditing('gh')", result.context);
+
+  assert.equal(editorSection.open, true);
+  assert.equal(result.context.document.activeElement, result.elements.get('full-link'));
+
+  await result.elements.get('cancel-edit').dispatch('click');
+
+  assert.equal(editorSection.open, true);
+  assert.equal(result.elements.get('full-link').value, '');
+  assert.equal(result.elements.get('form-title').textContent, 'Add new shortcut');
+});
+
+test('toolbar click focuses search without opening the editor or clearing drafts', async () => {
+  const result = runManager();
+  const editorSection = result.elements.get('add-section');
+
+  await vm.runInContext('initialize()', result.context);
+  result.elements.get('full-link').value = 'https://example.com/draft';
+  editorSection.open = false;
+
+  result.listeners.runtimeMessage({ type: 'focus-search', windowId: 9 });
+
+  assert.equal(editorSection.open, false);
+  assert.equal(result.elements.get('full-link').value, 'https://example.com/draft');
+  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+});
+
 test('manager displays background routing failures', async () => {
   const result = runManager();
   await vm.runInContext('initialize()', result.context);
@@ -431,18 +498,27 @@ test('manager displays background routing failures', async () => {
   assert.equal(result.elements.get('toast').dataset.type, 'error');
 });
 
-test('existing manager prefills the current URL while returning focus to search', async () => {
+test('opening the editor preserves an existing draft', async () => {
+  const result = runManager({}, { activeTab: { url: 'https://example.com/current' } });
+  await vm.runInContext('initialize()', result.context);
+  result.elements.get('full-link').value = 'https://example.com/draft';
+
+  const editorSection = result.elements.get('add-section');
+  editorSection.open = true;
+  await editorSection.dispatch('toggle');
+
+  assert.equal(result.elements.get('full-link').value, 'https://example.com/draft');
+  assert.deepEqual(result.tabQueries, []);
+});
+
+test('side panel ignores focus messages for other windows', async () => {
   const result = runManager();
   await vm.runInContext('initialize()', result.context);
   result.elements.get('go-link').focus();
 
-  result.listeners.runtimeMessage({
-    type: 'prefill-url',
-    url: 'https://example.com/current'
-  });
+  result.listeners.runtimeMessage({ type: 'focus-search', windowId: 10 });
 
-  assert.equal(result.elements.get('full-link').value, 'https://example.com/current');
-  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+  assert.equal(result.context.document.activeElement, result.elements.get('go-link'));
 });
 
 test('manager rejects sync items that exceed the per-item quota', async () => {
@@ -462,10 +538,17 @@ test('manifest defines a Chromium MV3 service worker', () => {
   const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 
   assert.equal(manifest.manifest_version, 3);
+  assert.equal(manifest.version, '2.1.0');
   assert.equal(
     manifest.background.service_worker,
     'src/background/service-worker.js'
   );
   assert.equal(manifest.action.default_popup, undefined);
+  assert.equal(manifest.minimum_chrome_version, '116');
+  assert.equal(
+    manifest.side_panel.default_path,
+    'src/manager/manager.html'
+  );
+  assert.equal(manifest.permissions.includes('sidePanel'), true);
   assert.equal(manifest.permissions.includes('unlimitedStorage'), false);
 });
