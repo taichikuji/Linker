@@ -32,19 +32,11 @@ function eventSlot(listeners, name) {
   };
 }
 
-function sendRuntimeMessage(listener, message) {
-  return new Promise(resolve => {
-    assert.equal(listener(message, {}, resolve), true);
-  });
-}
-
 function runBackground(options = {}) {
   const listeners = {};
   const createdTabs = [];
   const runtimeMessages = [];
   const openedPanels = [];
-  const browserOperations = [];
-  let sessionEntries = clone(options.sessionEntries ?? {});
   const errors = [];
   let ruleUpdateCalls = 0;
   let resolveUpdate;
@@ -86,19 +78,6 @@ function runBackground(options = {}) {
       }
     },
     storage: {
-      session: {
-        get: async key => key == null
-          ? clone(sessionEntries)
-          : { [key]: clone(sessionEntries[key]) },
-        remove: async key => {
-          browserOperations.push('session:remove');
-          delete sessionEntries[key];
-        },
-        set: async values => {
-          browserOperations.push('session:set');
-          sessionEntries = { ...sessionEntries, ...clone(values) };
-        }
-      },
       sync: {
         get: async () => ({
           gh: { url: 'https://github.com/' },
@@ -117,7 +96,6 @@ function runBackground(options = {}) {
     },
     sidePanel: {
       open: async details => {
-        browserOperations.push('sidePanel:open');
         openedPanels.push(clone(details));
       }
     },
@@ -130,7 +108,6 @@ function runBackground(options = {}) {
 
   const context = vm.createContext({
     chrome: api,
-    crypto: { randomUUID: () => 'prefill-1' },
     URL,
     console: { error: (...args) => errors.push(args) }
   });
@@ -142,9 +119,7 @@ function runBackground(options = {}) {
     createdTabs,
     runtimeMessages,
     errors,
-    openedPanels,
-    browserOperations,
-    getSessionEntries: () => clone(sessionEntries)
+    openedPanels
   };
 }
 
@@ -152,7 +127,7 @@ function runManager(initialEntries = {}, options = {}) {
   const listeners = {};
   const elements = new Map();
   const openedTabs = [];
-  const runtimeMessages = [];
+  const tabQueries = [];
   let entries = clone(initialEntries);
 
   const document = {
@@ -215,7 +190,6 @@ function runManager(initialEntries = {}, options = {}) {
       replaceChildren(...children) {
         this.children = children;
       },
-      scrollIntoView() {},
       select() {},
       setAttribute(name, value) {
         this[name] = value;
@@ -231,12 +205,6 @@ function runManager(initialEntries = {}, options = {}) {
       MAX_NUMBER_OF_REGEX_RULES: 1000
     },
     runtime: {
-      sendMessage: async message => {
-        runtimeMessages.push(clone(message));
-        return message.type === 'consume-prefill'
-          ? clone(options.pendingPrefill ?? null)
-          : undefined;
-      },
       onMessage: eventSlot(listeners, 'runtimeMessage')
     },
     storage: {
@@ -265,6 +233,10 @@ function runManager(initialEntries = {}, options = {}) {
       onChanged: eventSlot(listeners, 'storageChanged')
     },
     tabs: {
+      query: async details => {
+        tabQueries.push(clone(details));
+        return options.activeTab ? [clone(options.activeTab)] : [];
+      },
       create: async details => openedTabs.push(clone(details))
     },
     windows: {
@@ -288,7 +260,7 @@ function runManager(initialEntries = {}, options = {}) {
     elements,
     listeners,
     openedTabs,
-    runtimeMessages,
+    tabQueries,
     getEntries: () => clone(entries)
   };
 }
@@ -360,15 +332,15 @@ test('manager validates import and export through the Chromium extension API', a
   });
 });
 
-test('manager keeps shortcuts visible and the editor open by default', () => {
+test('manager keeps shortcuts visible and the editor collapsed by default', () => {
   assert.match(
     managerHtml,
-    /<section id="shortcut-section" class="shortcut-panel" aria-label="Saved shortcuts">/
+    /<section class="shortcut-panel" aria-label="Saved shortcuts">/
   );
   assert.doesNotMatch(managerHtml, /<details id="shortcut-section"/);
   assert.match(
     managerHtml,
-    /<details id="add-section" class="editor-panel" open>/
+    /<details id="add-section" class="editor-panel">/
   );
   assert.equal((managerHtml.match(/<summary class="panel-summary">/g) ?? []).length, 1);
 });
@@ -385,7 +357,7 @@ test('manager preserves its compact v2 visual identity in the side panel', () =>
   );
   assert.match(
     managerCss,
-    /\.shortcut-panel\s*{[^}]*display:\s*flex;[^}]*flex:\s*1 1 auto;/s
+    /\.shortcut-panel\s*{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;/s
   );
   assert.match(
     managerCss,
@@ -397,25 +369,21 @@ test('manager preserves its compact v2 visual identity in the side panel', () =>
   );
 });
 
-test('cold side panel consumes the current URL prefill and saves it', async () => {
+test('opening the editor reads the current URL and saves it', async () => {
   const sourceUrl = 'https://example.com/path?q=1';
   const result = runManager({}, {
-    windowId: 9,
-    pendingPrefill: { id: 'prefill-1', url: sourceUrl }
+    activeTab: { url: sourceUrl }
   });
   const editorSection = result.elements.get('add-section');
-  editorSection.open = true;
 
   await vm.runInContext('initialize()', result.context);
+  editorSection.open = true;
+  await editorSection.dispatch('toggle');
 
   const urlInput = result.elements.get('full-link');
   const shortcutInput = result.elements.get('go-link');
-  assert.deepEqual(result.runtimeMessages, [{
-    type: 'consume-prefill',
-    windowId: 9
-  }]);
+  assert.deepEqual(result.tabQueries, [{ active: true, currentWindow: true }]);
   assert.equal(urlInput.value, sourceUrl);
-  assert.equal(result.context.document.activeElement, result.elements.get('search'));
   assert.equal(editorSection.open, true);
 
   shortcutInput.value = 'EXAMPLE';
@@ -427,7 +395,7 @@ test('cold side panel consumes the current URL prefill and saves it', async () =
   assert.equal(editorSection.open, true);
 });
 
-test('toolbar click opens the side panel and stages the current URL', async () => {
+test('toolbar click opens the side panel and focuses search', async () => {
   const result = runBackground();
 
   await result.updated;
@@ -437,55 +405,22 @@ test('toolbar click opens the side panel and stages the current URL', async () =
   });
 
   assert.deepEqual(result.openedPanels, [{ windowId: 9 }]);
-  assert.deepEqual(result.browserOperations.slice(0, 2), [
-    'sidePanel:open',
-    'session:set'
-  ]);
   assert.deepEqual(result.createdTabs, []);
-  assert.deepEqual(result.getSessionEntries(), {
-    'side-panel-prefill:9': {
-      id: 'prefill-1',
-      url: 'https://example.com/current'
-    }
-  });
   assert.deepEqual(result.runtimeMessages, [{
-    type: 'prefill-url',
-    id: 'prefill-1',
-    windowId: 9,
-    url: 'https://example.com/current'
+    type: 'focus-search',
+    windowId: 9
   }]);
 });
 
-test('toolbar click clears stale prefill for non-web pages', async () => {
-  const result = runBackground({
-    sessionEntries: {
-      'side-panel-prefill:9': { id: 'stale', url: 'https://example.com/old' }
-    }
-  });
+test('opening the editor ignores internal browser URLs', async () => {
+  const result = runManager({}, { activeTab: { url: 'chrome://extensions' } });
+  await vm.runInContext('initialize()', result.context);
 
-  await result.updated;
-  await result.listeners.actionClicked({ windowId: 9, url: 'chrome://extensions' });
+  const editorSection = result.elements.get('add-section');
+  editorSection.open = true;
+  await editorSection.dispatch('toggle');
 
-  assert.deepEqual(result.openedPanels, [{ windowId: 9 }]);
-  assert.deepEqual(result.getSessionEntries(), {});
-  assert.deepEqual(result.runtimeMessages, [{ type: 'focus-search', windowId: 9 }]);
-});
-
-test('manager can consume a pending side-panel prefill once', async () => {
-  const result = runBackground({
-    sessionEntries: {
-      'side-panel-prefill:9': { id: 'prefill-1', url: 'https://example.com/current' }
-    }
-  });
-  await result.updated;
-
-  const prefill = await sendRuntimeMessage(result.listeners.runtimeMessage, {
-    type: 'consume-prefill',
-    windowId: 9
-  });
-
-  assert.deepEqual(prefill, { id: 'prefill-1', url: 'https://example.com/current' });
-  assert.deepEqual(result.getSessionEntries(), {});
+  assert.equal(result.elements.get('full-link').value, '');
 });
 
 test('routing failures are reported to the manager', async () => {
@@ -517,7 +452,7 @@ test('manager confirms normalized import replacements', async () => {
   assert.deepEqual(result.getEntries(), { gh: { url: 'https://example.com/' } });
 });
 
-test('editing opens the editor and cancel returns focus to search', async () => {
+test('editing opens the editor and cancel resets it', async () => {
   const result = runManager({ gh: { url: 'https://github.com/' } });
   const editorSection = result.elements.get('add-section');
   editorSection.open = false;
@@ -531,10 +466,11 @@ test('editing opens the editor and cancel returns focus to search', async () => 
   await result.elements.get('cancel-edit').dispatch('click');
 
   assert.equal(editorSection.open, true);
-  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+  assert.equal(result.elements.get('full-link').value, '');
+  assert.equal(result.elements.get('form-title').textContent, 'Add new shortcut');
 });
 
-test('toolbar click reopens the editor without clearing drafts', async () => {
+test('toolbar click focuses search without opening the editor or clearing drafts', async () => {
   const result = runManager();
   const editorSection = result.elements.get('add-section');
 
@@ -544,7 +480,7 @@ test('toolbar click reopens the editor without clearing drafts', async () => {
 
   result.listeners.runtimeMessage({ type: 'focus-search', windowId: 9 });
 
-  assert.equal(editorSection.open, true);
+  assert.equal(editorSection.open, false);
   assert.equal(result.elements.get('full-link').value, 'https://example.com/draft');
   assert.equal(result.context.document.activeElement, result.elements.get('search'));
 });
@@ -562,63 +498,27 @@ test('manager displays background routing failures', async () => {
   assert.equal(result.elements.get('toast').dataset.type, 'error');
 });
 
-test('open side panel prefills its window while returning focus to search', async () => {
-  const result = runManager();
-  await vm.runInContext('initialize()', result.context);
-  result.elements.get('go-link').focus();
-  result.elements.get('add-section').open = false;
-
-  result.listeners.runtimeMessage({
-    type: 'prefill-url',
-    id: 'prefill-2',
-    windowId: 9,
-    url: 'https://example.com/current'
-  });
-  result.listeners.runtimeMessage({
-    type: 'prefill-url',
-    id: 'prefill-2',
-    windowId: 9,
-    url: 'https://example.com/current'
-  });
-  await new Promise(resolve => setImmediate(resolve));
-
-  assert.equal(result.elements.get('full-link').value, 'https://example.com/current');
-  assert.equal(result.elements.get('add-section').open, true);
-  assert.equal(result.context.document.activeElement, result.elements.get('search'));
-  assert.deepEqual(result.runtimeMessages, [
-    { type: 'consume-prefill', windowId: 9 },
-    { type: 'consume-prefill', windowId: 9 }
-  ]);
-});
-
-test('side panel ignores other windows and preserves an existing draft', async () => {
-  const result = runManager();
+test('opening the editor preserves an existing draft', async () => {
+  const result = runManager({}, { activeTab: { url: 'https://example.com/current' } });
   await vm.runInContext('initialize()', result.context);
   result.elements.get('full-link').value = 'https://example.com/draft';
 
-  result.listeners.runtimeMessage({
-    type: 'prefill-url',
-    id: 'wrong-window',
-    windowId: 10,
-    url: 'https://example.com/ignored'
-  });
-  result.listeners.runtimeMessage({
-    type: 'prefill-url',
-    id: 'prefill-2',
-    windowId: 9,
-    url: 'https://example.com/current'
-  });
-  await new Promise(resolve => setImmediate(resolve));
+  const editorSection = result.elements.get('add-section');
+  editorSection.open = true;
+  await editorSection.dispatch('toggle');
 
   assert.equal(result.elements.get('full-link').value, 'https://example.com/draft');
-  assert.equal(
-    result.elements.get('toast-message').textContent,
-    'Current shortcut draft preserved.'
-  );
-  assert.deepEqual(result.runtimeMessages, [
-    { type: 'consume-prefill', windowId: 9 },
-    { type: 'consume-prefill', windowId: 9 }
-  ]);
+  assert.deepEqual(result.tabQueries, []);
+});
+
+test('side panel ignores focus messages for other windows', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  result.elements.get('go-link').focus();
+
+  result.listeners.runtimeMessage({ type: 'focus-search', windowId: 10 });
+
+  assert.equal(result.context.document.activeElement, result.elements.get('go-link'));
 });
 
 test('manager rejects sync items that exceed the per-item quota', async () => {

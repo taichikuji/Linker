@@ -61,23 +61,21 @@
     </header>
 
     <main class="manager-grid">
-      <section id="shortcut-section" class="shortcut-panel" aria-label="Saved shortcuts">
-        <div class="shortcut-content">
-          <label class="search-field" for="search">
-            <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
-            <input id="search" type="search" autocomplete="off" placeholder="Search shortcuts">
-          </label>
+      <section class="shortcut-panel" aria-label="Saved shortcuts">
+        <label class="search-field" for="search">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+          <input id="search" type="search" autocomplete="off" placeholder="Search shortcuts">
+        </label>
 
-          <p id="capacity-warning" class="capacity-warning" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+        <p id="capacity-warning" class="capacity-warning" role="status" aria-live="polite" aria-atomic="true" hidden></p>
 
-          <div class="shortcuts">
-            <ul id="item-list" class="shortcut-list"></ul>
-            <p id="empty-state" class="empty-state" hidden></p>
-          </div>
+        <div class="shortcuts">
+          <ul id="item-list" class="shortcut-list"></ul>
+          <p id="empty-state" class="empty-state" hidden></p>
         </div>
       </section>
 
-      <details id="add-section" class="editor-panel" open>
+      <details id="add-section" class="editor-panel">
         <summary class="panel-summary">
           <span id="form-title" class="summary-title">Add new shortcut</span>
           <svg class="ui-icon disclosure-icon" aria-hidden="true"><use href="#icon-down"></use></svg>

@@ -15,8 +15,8 @@ Open the browser's extensions menu to pin Linker to the toolbar.
 
 Click Linker's toolbar icon to open the shortcut manager in the browser's side
 panel. The panel stays available beside the current page until you hide it,
-and clicking Linker again offers the active page as a new shortcut destination
-without overwriting an unfinished draft.
+and opening **Add new shortcut** offers the active page as a new shortcut
+destination without overwriting an unfinished draft.
 
 ## Why is there no Firefox build?
 
