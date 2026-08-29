@@ -159,7 +159,7 @@ button {
 
 .manager-grid {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 20px;
   margin-top: 20px;
@@ -603,12 +603,6 @@ button {
 .modal p {
   margin: 0 0 18px;
   font-weight: 600;
-}
-
-@media (max-width: 850px) {
-  .manager-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 600px) {
