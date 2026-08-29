@@ -24,6 +24,7 @@ const state = {
 
 const elements = {
   search: document.getElementById('search'),
+  shortcutSection: document.getElementById('shortcut-section'),
   capacityWarning: document.getElementById('capacity-warning'),
   itemList: document.getElementById('item-list'),
   emptyState: document.getElementById('empty-state'),
@@ -110,6 +111,8 @@ function acceptPrefill(prefill) {
 }
 
 function focusSearch() {
+  elements.shortcutSection.open = true;
+  elements.addSection.open = false;
   elements.search.focus();
   elements.search.select();
 }
@@ -127,6 +130,12 @@ function prefillSourceUrl(url) {
 }
 
 function setupEventListeners() {
+  elements.shortcutSection.addEventListener('toggle', () => {
+    if (elements.shortcutSection.open) elements.addSection.open = false;
+  });
+  elements.addSection.addEventListener('toggle', () => {
+    if (elements.addSection.open) elements.shortcutSection.open = false;
+  });
   elements.search.addEventListener('input', renderEntries);
   elements.search.addEventListener('keydown', event => {
     if (event.key === 'Enter') elements.itemList.querySelector('.shortcut-open')?.click();
@@ -288,8 +297,9 @@ function startEditing(shortcut) {
   elements.saveButton.textContent = 'Save changes';
   elements.cancelEditButton.hidden = false;
   updateVariableFields();
+  elements.shortcutSection.open = false;
+  elements.addSection.open = true;
   elements.urlInput.focus();
-  elements.addSection.scrollIntoView({ block: 'nearest' });
 }
 
 function resetForm() {
@@ -301,6 +311,7 @@ function resetForm() {
   elements.saveButton.textContent = 'Save shortcut';
   elements.cancelEditButton.hidden = true;
   updateVariableFields();
+  focusSearch();
 }
 
 function updateVariableFields() {
