@@ -298,6 +298,10 @@ details:not([open]) > .panel-summary .disclosure-icon {
   overflow-y: auto;
 }
 
+.shortcuts::-webkit-scrollbar {
+  display: none;
+}
+
 .shortcut-list {
   margin: 0;
   padding: 0 10px 10px;
