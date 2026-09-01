@@ -9,6 +9,17 @@ Brave, Microsoft Edge, Opera, Vivaldi, and compatible Chromium forks.
 
 For the canonical installation and usage guide, see [How to use Linker](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
 
+## Description
+
+At this time ( it will update ) it does the following:
+
+- Add, search, delete, and edit _go/link_ based URLs.
+- Open shortcuts by clicking them or typing `go/<value>` in the browser.
+- Use `{*}` for dynamic, parameterized links.
+- Export and import shortcut data, compatible with [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj).
+
+For the examples and the full explanation, see the [How to use Linker](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker) guide.
+
 ## Why is there no Firefox build?
 
 Linker was created for Chromium-based browsers and has never been fully tested
