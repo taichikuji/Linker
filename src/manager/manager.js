@@ -1,5 +1,5 @@
 const CONFIG = {
-  HELP_URL: 'https://github.com/taichikuji/Linker#functionality',
+  HELP_URL: 'https://github.com/taichikuji/Linker/wiki/How-to-use-Linker',
   MAX_SHORTCUT_LENGTH: 100,
   MAX_IMPORT_BYTES: 100 * 1024,
   MAX_IMPORT_ENTRIES: 500,
