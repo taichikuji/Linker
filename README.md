@@ -7,16 +7,7 @@ A small browser extension for creating personal URL shortcuts.
 Linker supports Chromium 116 or newer on desktop, including Google Chrome,
 Brave, Microsoft Edge, Opera, Vivaldi, and compatible Chromium forks.
 
-Open your browser's extensions page (for example, `chrome://extensions`,
-`brave://extensions`, or `edge://extensions`), enable developer mode, choose
-**Load unpacked**, and select this directory.
-
-Open the browser's extensions menu to pin Linker to the toolbar.
-
-Click Linker's toolbar icon to open the shortcut manager in the browser's side
-panel. The panel stays available beside the current page until you hide it,
-and opening **Add new shortcut** offers the active page as a new shortcut
-destination without overwriting an unfinished draft.
+For the canonical installation and usage guide, see [How to use Linker](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
 
 ## Why is there no Firefox build?
 
@@ -43,59 +34,6 @@ is shared by compatible Chromium-based browsers. Before releasing, load Linker
 in current Chrome and Brave, verify the side panel and its URL prefill at narrow
 and wide widths, then create direct and parameterized shortcuts, verify both
 redirect, restart each browser, and verify the redirects again.
-
-## Description
-
-At this time ( it will update ) it does the following:
-
-### Functionality
-
-#### Add, Search, Delete, Edit _go/link_ shortcuts
-
-You can add, delete, overwrite _go/link_ based URLs! As expected.
-
-There's a search bar at the top, which you can use to search existing entries.
-
-#### Using _go/links_
-
-You can both click on the extension's saved entries to go to the bookmark / shortcut, or type on your browser `go/<value>` to go whichever entry contains `<value>`
-
-For example;
-
-> go/gh --> redirects to --> github.com
-
-#### Dynamic syntax ( cool stuff! )
-
-You can use variables or parameterized values on your go/links! Let me explain;
-
-For example:
-
-> go/gh/taichikuji/linker --> redirects to --> github.com/**taichikuji/linker**
-
-You can use `{*}` within a destination URL to redirect dynamically to said URL. This can help speed up a lot your browsing experience!
-
-Another example:
-
-> go/issue/linker --> redirects to --> github.com/taichikuji/issues/**linker**
-
-There's a lot that you can do purely based on this! And none is hardcoded, so you can customize this behaviour to your liking!
-
-### Import and export
-
-You can export your database for sharing with another computer, or if you are going to reset your PC... Whatever you want to do. This allows you to essentially make a backup of your current state of the Linker Database.
-
-It follows the same JSON nomenclature for exporting/importing as [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj), hence it is directly compatible ( for now! ) and you can migrate easily to Linker if you want.
-
-### Permissions and privacy
-
-Linker stores shortcuts in browser sync storage and does not send browsing data
-to an external service. The all-sites permission lets its local redirect rules
-recognize `go/<shortcut>` when the browser turns that text into a web request or
-search query.
-
----
-
-That's it for now. As you can see it is minimal, but I will continue to work on it as it goes on. This is by design, just like [Stasher](https://github.com/taichikuji/Stasher/).
 
 ## Is there a Google Extension Store URL available?
 
