@@ -298,10 +298,6 @@ details:not([open]) > .panel-summary .disclosure-icon {
   overflow-y: auto;
 }
 
-.shortcuts::-webkit-scrollbar {
-  display: none;
-}
-
 .shortcut-list {
   margin: 0;
   padding: 0 10px 10px;
@@ -626,19 +622,15 @@ details:not([open]) > .panel-summary .disclosure-icon {
 }
 
 .modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.5);
-  transition: opacity 0.15s;
+  width: min(420px, calc(100% - 40px));
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
-.modal-overlay.hidden {
-  opacity: 0;
-  pointer-events: none;
+.modal-overlay::backdrop {
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .modal {

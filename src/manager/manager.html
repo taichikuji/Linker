@@ -62,10 +62,13 @@
 
     <main class="manager-grid">
       <section class="shortcut-panel" aria-label="Saved shortcuts">
-        <label class="search-field" for="search">
-          <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
-          <input id="search" type="search" autocomplete="off" placeholder="Search shortcuts">
-        </label>
+        <search aria-label="Search shortcuts">
+          <label class="search-field" for="search">
+            <span class="visually-hidden">Search shortcuts</span>
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+            <input id="search" type="search" autocomplete="off" placeholder="Search shortcuts">
+          </label>
+        </search>
 
         <p id="capacity-warning" class="capacity-warning" role="status" aria-live="polite" aria-atomic="true" hidden></p>
 
@@ -80,24 +83,24 @@
           <span id="form-title" class="summary-title">Add new shortcut</span>
           <svg class="ui-icon disclosure-icon" aria-hidden="true"><use href="#icon-down"></use></svg>
         </summary>
-        <form id="editor-form" class="add-form" novalidate>
+        <form id="editor-form" class="add-form">
           <div class="field-label">
             <label for="full-link">Destination URL</label>
             <span id="variable-badge" class="variable-badge" hidden>Variable</span>
           </div>
-          <input id="full-link" type="url" placeholder="https://example.com/items/{*}" spellcheck="false" aria-describedby="destination-hint">
+          <input id="full-link" name="url" type="url" required placeholder="https://example.com/items/{*}" spellcheck="false" aria-describedby="destination-hint">
           <p id="destination-hint" class="field-hint">Add <code>{*}</code> where the trailing go link value should appear.</p>
 
           <div id="fallback-field" class="conditional-field" hidden>
             <label for="fallback-link">Default go link to</label>
-            <input id="fallback-link" type="url" placeholder="https://example.com/" spellcheck="false" aria-describedby="fallback-hint">
+            <input id="fallback-link" name="fallback-url" type="url" placeholder="https://example.com/" spellcheck="false" aria-describedby="fallback-hint">
             <p id="fallback-hint" class="field-hint">Used when no variable value is provided.</p>
           </div>
 
           <label for="go-link">Shortcut</label>
           <div class="shortcut-field">
             <span>go/</span>
-            <input id="go-link" type="text" maxlength="100" autocomplete="off" placeholder="shortcut" aria-describedby="shortcut-hint">
+            <input id="go-link" name="shortcut" type="text" required maxlength="100" autocomplete="off" placeholder="shortcut" aria-describedby="shortcut-hint">
           </div>
           <p id="shortcut-hint" class="field-hint">No spaces or URL punctuation.</p>
 
@@ -115,7 +118,7 @@
     <button id="toast-close" class="toast-close" type="button" aria-label="Dismiss notification"><svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
   </div>
 
-  <div id="confirm-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+  <dialog id="confirm-modal" class="modal-overlay" aria-labelledby="confirm-title">
     <div class="modal">
       <p id="confirm-title"></p>
       <div class="modal-actions">
@@ -123,7 +126,7 @@
         <button id="confirm-ok" class="danger-button" type="button"><svg id="confirm-icon" class="ui-icon" aria-hidden="true"><use href="#icon-delete"></use></svg><span id="confirm-label">Delete</span></button>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <template id="shortcut-template">
     <li class="shortcut-item">
