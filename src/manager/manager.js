@@ -1,3 +1,5 @@
+// Sync storage is the source of truth. The background worker converts entries
+// into declarative redirect rules whenever this side panel changes storage.
 const CONFIG = {
   HELP_URL: 'https://github.com/taichikuji/Linker/wiki/How-to-use-Linker',
   MAX_SHORTCUT_LENGTH: 100,
@@ -271,6 +273,7 @@ function resetForm() {
 }
 
 function updateVariableFields() {
+  // A parameterized URL needs a second, non-parameterized destination for go/name.
   const parameterized = hasVariable(elements.urlInput.value);
   elements.variableBadge.hidden = !parameterized;
   elements.fallbackField.hidden = !parameterized;
@@ -457,6 +460,7 @@ async function ensureImportFitsSyncStorage(importedEntries) {
     throw new Error(`Import exceeds the browser limit of ${SYNC_MAX_ITEMS} synced shortcuts.`);
   }
 
+  // Replaced entries already count toward usedBytes, so subtract them before projecting.
   const [usedBytes, replacedBytes] = await Promise.all([
     chrome.storage.sync.getBytesInUse(null),
     chrome.storage.sync.getBytesInUse(shortcuts)
@@ -553,6 +557,7 @@ function showConfirmModal(message, { confirmLabel = 'Delete', danger = true } = 
       resolve(result);
     };
 
+    // Native dialog emits close for buttons and Escape; returnValue identifies confirmation.
     const handleClose = () => {
       finish(elements.confirmModal.returnValue === 'confirm');
     };

@@ -9,6 +9,7 @@
   <script defer src="manager.js"></script>
 </head>
 <body class="manager-view">
+  <!-- Inline symbols keep the side panel self-contained; controls reference them with <use>. -->
   <svg class="icon-sprite" aria-hidden="true">
     <symbol id="icon-help" viewBox="2 2 20 20">
       <path d="M9.1 9a3 3 0 1 1 4.9 2.3c-1.2.9-2 1.4-2 2.7M12 17h.01M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" />
@@ -128,6 +129,7 @@
     </div>
   </dialog>
 
+  <!-- manager.js clones this template and inserts shortcut data with textContent. -->
   <template id="shortcut-template">
     <li class="shortcut-item">
       <button class="shortcut-open" type="button">

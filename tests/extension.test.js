@@ -4,6 +4,7 @@ const { join } = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 
+// Run extension scripts against the smallest Chrome API stubs needed for smoke tests.
 const root = join(__dirname, '..');
 const backgroundSource = readFileSync(join(root, 'src/background/service-worker.js'), 'utf8');
 const managerSource = readFileSync(join(root, 'src/manager/manager.js'), 'utf8');

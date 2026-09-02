@@ -299,6 +299,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
 }
 
 .shortcuts::-webkit-scrollbar {
+  /* Intentionally hide Chromium's scrollbar chrome; the list remains scrollable. */
   display: none;
 }
 
@@ -626,6 +627,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
 }
 
 .modal-overlay {
+  /* Native dialog handles focus and modality; this only styles its content box. */
   width: min(420px, calc(100% - 40px));
   margin: auto;
   padding: 0;
