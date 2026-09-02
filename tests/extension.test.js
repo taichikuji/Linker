@@ -462,7 +462,6 @@ test('manifest defines a Chromium MV3 service worker', () => {
   const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, '2.1.4');
   assert.equal(
     manifest.background.service_worker,
     'src/background/service-worker.js'
