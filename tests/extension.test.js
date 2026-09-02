@@ -568,7 +568,7 @@ test('manifest defines a Chromium MV3 service worker', () => {
     'src/background/service-worker.js'
   );
   assert.equal(manifest.action.default_popup, undefined);
-  assert.equal(manifest.minimum_chrome_version, '116');
+  assert.equal(manifest.minimum_chrome_version, undefined);
   assert.equal(
     manifest.side_panel.default_path,
     'src/manager/manager.html'

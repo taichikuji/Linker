@@ -4,7 +4,7 @@ A small browser extension for creating personal URL shortcuts.
 
 ## Installation
 
-Linker supports Chromium 116 or newer on desktop, including Google Chrome,
+Linker supports current desktop Chromium browsers, including Google Chrome,
 Brave, Microsoft Edge, Opera, Vivaldi, and compatible Chromium forks.
 
 For the canonical installation and usage guide, see [How to use Linker](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
