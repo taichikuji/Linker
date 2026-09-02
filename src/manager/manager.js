@@ -9,18 +9,14 @@ const CONFIG = {
   VARIABLE_TOKEN: '{*}'
 };
 
-const MAX_REGEX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
+const MAX_REGEX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES;
 const REGEX_RULE_WARNING_THRESHOLD = Math.max(0, MAX_REGEX_RULES - 100);
-const SYNC_MAX_ITEMS = chrome.storage.sync.MAX_ITEMS ?? 512;
-const SYNC_QUOTA_BYTES = chrome.storage.sync.QUOTA_BYTES ?? 102400;
-const SYNC_QUOTA_BYTES_PER_ITEM = chrome.storage.sync.QUOTA_BYTES_PER_ITEM ?? 8192;
 
 const state = {
   entries: {},
   editingShortcut: null,
   windowId: null,
-  toastTimeout: null,
-  pendingConfirmation: null
+  toastTimeout: null
 };
 
 const elements = {
@@ -154,10 +150,7 @@ function updateCapacityWarning() {
   let message = '';
   let type = 'warning';
 
-  if (ruleCount > MAX_REGEX_RULES) {
-    type = 'error';
-    message = `Browser limit exceeded: ${ruleCount}/${MAX_REGEX_RULES} redirect rules. Delete shortcuts to restore routing.`;
-  } else if (ruleCount === MAX_REGEX_RULES) {
+  if (ruleCount >= MAX_REGEX_RULES) {
     type = 'error';
     message = `Browser limit reached: ${ruleCount}/${MAX_REGEX_RULES} redirect rules. Delete a shortcut before adding another.`;
   } else if (ruleCount >= REGEX_RULE_WARNING_THRESHOLD) {
@@ -237,12 +230,8 @@ function createEntry([shortcut, value]) {
 }
 
 function getTargetLabel(url) {
-  try {
-    const parsed = new URL(url);
-    return `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`;
-  } catch {
-    return url;
-  }
+  const parsed = new URL(url);
+  return `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`;
 }
 
 function startEditing(shortcut) {
@@ -443,37 +432,6 @@ function parseImportData(parsed) {
   };
 }
 
-function serializedEntryBytes(shortcut, entry) {
-  return new Blob([shortcut, JSON.stringify(entry)]).size;
-}
-
-async function ensureImportFitsSyncStorage(importedEntries) {
-  const shortcuts = Object.keys(importedEntries);
-  const oversized = shortcuts.find(shortcut =>
-    serializedEntryBytes(shortcut, importedEntries[shortcut]) > SYNC_QUOTA_BYTES_PER_ITEM
-  );
-  if (oversized) throw new Error(`go/${oversized} is too large for browser sync storage.`);
-
-  const stored = await chrome.storage.sync.get(null);
-  const projectedItems = new Set([...Object.keys(stored), ...shortcuts]).size;
-  if (projectedItems > SYNC_MAX_ITEMS) {
-    throw new Error(`Import exceeds the browser limit of ${SYNC_MAX_ITEMS} synced shortcuts.`);
-  }
-
-  // Replaced entries already count toward usedBytes, so subtract them before projecting.
-  const [usedBytes, replacedBytes] = await Promise.all([
-    chrome.storage.sync.getBytesInUse(null),
-    chrome.storage.sync.getBytesInUse(shortcuts)
-  ]);
-  const importedBytes = Object.entries(importedEntries).reduce(
-    (bytes, [shortcut, entry]) => bytes + serializedEntryBytes(shortcut, entry),
-    0
-  );
-  if (usedBytes - replacedBytes + importedBytes > SYNC_QUOTA_BYTES) {
-    throw new Error('Import exceeds the browser sync-storage quota.');
-  }
-}
-
 async function importShortcuts(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -489,8 +447,6 @@ async function importShortcuts(event) {
     if (countRedirectRules(nextEntries) > MAX_REGEX_RULES) {
       throw new Error(`Import exceeds the browser limit of ${MAX_REGEX_RULES} redirect rules.`);
     }
-    await ensureImportFitsSyncStorage(imported.entries);
-
     const replacementCount = Object.keys(imported.entries)
       .filter(shortcut => shortcut in state.entries)
       .length;
@@ -538,8 +494,6 @@ function hideToast() {
 }
 
 function showConfirmModal(message, { confirmLabel = 'Delete', danger = true } = {}) {
-  if (state.pendingConfirmation) state.pendingConfirmation(false);
-
   return new Promise(resolve => {
     const previousFocus = document.activeElement;
     elements.confirmTitle.textContent = message;
@@ -552,7 +506,6 @@ function showConfirmModal(message, { confirmLabel = 'Delete', danger = true } = 
       elements.confirmOk.onclick = null;
       elements.confirmCancel.onclick = null;
       elements.confirmModal.removeEventListener('close', handleClose);
-      state.pendingConfirmation = null;
       previousFocus?.focus();
       resolve(result);
     };
@@ -564,7 +517,6 @@ function showConfirmModal(message, { confirmLabel = 'Delete', danger = true } = 
 
     const close = value => elements.confirmModal.close(value);
 
-    state.pendingConfirmation = result => close(result ? 'confirm' : 'cancel');
     elements.confirmModal.addEventListener('close', handleClose);
     elements.confirmOk.onclick = () => close('confirm');
     elements.confirmCancel.onclick = () => close('cancel');

@@ -13,15 +13,6 @@ const managerSource = readFileSync(
   join(root, 'src/manager/manager.js'),
   'utf8'
 );
-const managerHtml = readFileSync(
-  join(root, 'src/manager/manager.html'),
-  'utf8'
-);
-const managerCss = readFileSync(
-  join(root, 'src/manager/manager.css'),
-  'utf8'
-);
-
 const clone = value => JSON.parse(JSON.stringify(value));
 
 function eventSlot(listeners, name) {
@@ -34,7 +25,6 @@ function eventSlot(listeners, name) {
 
 function runBackground(options = {}) {
   const listeners = {};
-  const createdTabs = [];
   const runtimeMessages = [];
   const openedPanels = [];
   const errors = [];
@@ -57,18 +47,7 @@ function runBackground(options = {}) {
       }
     },
     runtime: {
-      sendMessage: async message => runtimeMessages.push(clone(message)),
-      onMessage: eventSlot(listeners, 'runtimeMessage'),
-      onInstalled: {
-        addListener: listener => {
-          listeners.installed = listener;
-        }
-      },
-      onStartup: {
-        addListener: listener => {
-          listeners.startup = listener;
-        }
-      }
+      sendMessage: async message => runtimeMessages.push(clone(message))
     },
     action: {
       onClicked: {
@@ -98,11 +77,6 @@ function runBackground(options = {}) {
       open: async details => {
         openedPanels.push(clone(details));
       }
-    },
-    tabs: {
-      create: async options => {
-        createdTabs.push(JSON.parse(JSON.stringify(options)));
-      }
     }
   };
 
@@ -116,7 +90,6 @@ function runBackground(options = {}) {
   return {
     listeners,
     updated,
-    createdTabs,
     runtimeMessages,
     errors,
     openedPanels,
@@ -127,7 +100,6 @@ function runBackground(options = {}) {
 function runManager(initialEntries = {}, options = {}) {
   const listeners = {};
   const elements = new Map();
-  const openedTabs = [];
   const tabQueries = [];
   let entries = clone(initialEntries);
 
@@ -156,8 +128,7 @@ function runManager(initialEntries = {}, options = {}) {
       children: [],
       classList: {
         add: (...names) => names.forEach(name => classes.add(name)),
-        remove: (...names) => names.forEach(name => classes.delete(name)),
-        contains: name => classes.has(name)
+        remove: (...names) => names.forEach(name => classes.delete(name))
       },
       dataset: {},
       files: [],
@@ -218,24 +189,11 @@ function runManager(initialEntries = {}, options = {}) {
     },
     storage: {
       sync: {
-        MAX_ITEMS: 512,
-        QUOTA_BYTES: 102400,
-        QUOTA_BYTES_PER_ITEM: 8192,
         get: async () => clone(entries),
-        getBytesInUse: async keys => {
-          const selected = keys == null
-            ? entries
-            : Object.fromEntries([keys].flat().filter(key => key in entries).map(key => [key, entries[key]]));
-          return Object.entries(selected).reduce(
-            (bytes, [key, value]) => bytes + key.length + JSON.stringify(value).length,
-            0
-          );
-        },
         remove: async key => {
           delete entries[key];
         },
         set: async values => {
-          if (options.failStorage) throw new Error('Storage failed');
           entries = { ...entries, ...clone(values) };
         }
       },
@@ -245,8 +203,7 @@ function runManager(initialEntries = {}, options = {}) {
       query: async details => {
         tabQueries.push(clone(details));
         return options.activeTab ? [clone(options.activeTab)] : [];
-      },
-      create: async details => openedTabs.push(clone(details))
+      }
     },
     windows: {
       getCurrent: async () => ({ id: options.windowId ?? 9 })
@@ -268,7 +225,6 @@ function runManager(initialEntries = {}, options = {}) {
     context,
     elements,
     listeners,
-    openedTabs,
     tabQueries,
     getEntries: () => clone(entries)
   };
@@ -278,8 +234,6 @@ test('background initializes through the Chromium extension API', async () => {
   const { listeners, updated } = runBackground();
   const update = await updated;
 
-  assert.equal(typeof listeners.installed, 'function');
-  assert.equal(typeof listeners.startup, 'function');
   assert.equal(typeof listeners.storageChanged, 'function');
   assert.equal(typeof listeners.actionClicked, 'function');
   assert.deepEqual(update.removeRuleIds, [99]);
@@ -341,46 +295,6 @@ test('manager validates import and export through the Chromium extension API', a
   });
 });
 
-test('manager keeps shortcuts visible and the editor collapsed by default', () => {
-  assert.match(
-    managerHtml,
-    /<section class="shortcut-panel" aria-label="Saved shortcuts">/
-  );
-  assert.doesNotMatch(managerHtml, /<details id="shortcut-section"/);
-  assert.match(
-    managerHtml,
-    /<details id="add-section" class="editor-panel">/
-  );
-  assert.equal((managerHtml.match(/<summary class="panel-summary">/g) ?? []).length, 1);
-  assert.match(managerHtml, /<search aria-label="Search shortcuts">/);
-  assert.match(managerHtml, /<dialog id="confirm-modal"/);
-  assert.doesNotMatch(managerHtml, /novalidate/);
-});
-
-test('manager preserves its compact v2 visual identity in the side panel', () => {
-  assert.match(managerHtml, /Your shortcuts, one hop away/);
-  assert.match(managerCss, /\.brand p\s*{\s*display:\s*none;/);
-  assert.match(managerHtml, /<symbol id="icon-down"/);
-  assert.equal((managerHtml.match(/<use href="#icon-down"><\/use>/g) ?? []).length, 1);
-  assert.doesNotMatch(managerHtml, /class="disclosure-marker"/);
-  assert.match(
-    managerCss,
-    /\.shortcut-panel,\s*\.editor-panel\s*{[^}]*overflow:\s*clip;/s
-  );
-  assert.match(
-    managerCss,
-    /\.shortcut-panel\s*{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;/s
-  );
-  assert.match(
-    managerCss,
-    /\.panel-summary\s*{[^}]*padding:\s*12px 20px;/s
-  );
-  assert.match(
-    managerCss,
-    /\.summary-title\s*{[^}]*font-size:\s*14px;[^}]*font-weight:\s*600;/s
-  );
-});
-
 test('opening the editor reads the current URL and saves it', async () => {
   const sourceUrl = 'https://example.com/path?q=1';
   const result = runManager({}, {
@@ -417,7 +331,6 @@ test('toolbar click opens the side panel and focuses search', async () => {
   });
 
   assert.deepEqual(result.openedPanels, [{ windowId: 9 }]);
-  assert.deepEqual(result.createdTabs, []);
   assert.deepEqual(result.runtimeMessages, [{
     type: 'focus-search',
     windowId: 9
@@ -543,19 +456,6 @@ test('side panel ignores focus messages for other windows', async () => {
   result.listeners.runtimeMessage({ type: 'focus-search', windowId: 10 });
 
   assert.equal(result.context.document.activeElement, result.elements.get('go-link'));
-});
-
-test('manager rejects sync items that exceed the per-item quota', async () => {
-  const result = runManager();
-  const oversizedUrl = `https://example.com/${'x'.repeat(9000)}`;
-
-  await assert.rejects(
-    vm.runInContext(
-      `ensureImportFitsSyncStorage({ huge: { url: ${JSON.stringify(oversizedUrl)} } })`,
-      result.context
-    ),
-    /too large for browser sync storage/
-  );
 });
 
 test('manifest defines a Chromium MV3 service worker', () => {

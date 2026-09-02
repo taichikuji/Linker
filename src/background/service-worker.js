@@ -6,7 +6,7 @@ const CONFIG = {
   VARIABLE_TOKEN: '{*}'
 };
 
-const MAX_REGEX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
+const MAX_REGEX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES;
 // This is always kept fulfilled after logging a failure, so a bad update cannot
 // prevent the next storage change from rebuilding redirect rules.
 let ruleSyncQueue = Promise.resolve();
@@ -143,10 +143,6 @@ function scheduleRuleUpdate() {
 
 async function openSidePanel(sourceTab) {
   try {
-    if (!Number.isInteger(sourceTab?.windowId)) {
-      throw new Error('The toolbar action did not provide a browser window.');
-    }
-
     await chrome.sidePanel.open({ windowId: sourceTab.windowId });
     await chrome.runtime.sendMessage({
       type: 'focus-search',
@@ -157,8 +153,6 @@ async function openSidePanel(sourceTab) {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => scheduleRuleUpdate().catch(() => {}));
-chrome.runtime.onStartup.addListener(() => scheduleRuleUpdate().catch(() => {}));
 chrome.action.onClicked.addListener(openSidePanel);
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
