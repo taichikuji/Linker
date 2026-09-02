@@ -7,6 +7,8 @@ const CONFIG = {
 };
 
 const MAX_REGEX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_REGEX_RULES ?? 1000;
+// This is always kept fulfilled after logging a failure, so a bad update cannot
+// prevent the next storage change from rebuilding redirect rules.
 let ruleSyncQueue = Promise.resolve();
 
 /**
@@ -73,6 +75,7 @@ function buildRedirectRules(entries) {
     const defaultUrl = parameterized ? value.fallbackUrl : value.url;
 
     if (parameterized) {
+      // Group 1 captures a path value; group 2 captures the encoded query-string value.
       const regexSubstitution = value.url.replaceAll(CONFIG.VARIABLE_TOKEN, '\\1\\2');
 
       rules.push({
@@ -160,6 +163,7 @@ chrome.action.onClicked.addListener(openSidePanel);
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === CONFIG.STORAGE_NAMESPACE && Object.keys(changes).length > 0) {
+    // Storage has already accepted the shortcut; only the browser routing failed.
     scheduleRuleUpdate().catch(() => {
       chrome.runtime.sendMessage({ type: 'rule-update-failed' }).catch(() => {});
     });
