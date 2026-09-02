@@ -131,11 +131,37 @@ async function updateRedirectRules() {
  * Serializes updates so rapid sync-storage changes cannot install stale rules.
  */
 function scheduleRuleUpdate() {
-  const next = ruleSyncQueue.then(updateRedirectRules, updateRedirectRules);
-  ruleSyncQueue = next.catch(error => {
-    console.error('Error updating Linker redirect rules:', error);
-  });
+  const previous = ruleSyncQueue;
+  const next = (async () => {
+    await previous;
+    await updateRedirectRules();
+  })();
+
+  ruleSyncQueue = (async () => {
+    try {
+      await next;
+    } catch (error) {
+      console.error('Error updating Linker redirect rules:', error);
+    }
+  })();
+
   return next;
+}
+
+async function refreshRules() {
+  try {
+    await scheduleRuleUpdate();
+  } catch {
+    // The queue already logged the failure.
+  }
+}
+
+async function notifyRuleUpdateFailure() {
+  try {
+    await chrome.runtime.sendMessage({ type: 'rule-update-failed' });
+  } catch {
+    // The side panel may not be open.
+  }
 }
 
 async function openSidePanel(sourceTab) {
@@ -145,26 +171,33 @@ async function openSidePanel(sourceTab) {
     }
 
     await chrome.sidePanel.open({ windowId: sourceTab.windowId });
-    await chrome.runtime.sendMessage({
-      type: 'focus-search',
-      windowId: sourceTab.windowId
-    }).catch(() => {});
+    try {
+      await chrome.runtime.sendMessage({
+        type: 'focus-search',
+        windowId: sourceTab.windowId
+      });
+    } catch {
+      // The side panel can still be starting.
+    }
   } catch (error) {
     console.error('Error opening Linker side panel:', error);
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => scheduleRuleUpdate().catch(() => {}));
-chrome.runtime.onStartup.addListener(() => scheduleRuleUpdate().catch(() => {}));
-chrome.action.onClicked.addListener(openSidePanel);
+async function handleStorageChange(changes, namespace) {
+  if (namespace !== CONFIG.STORAGE_NAMESPACE || Object.keys(changes).length === 0) return;
 
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === CONFIG.STORAGE_NAMESPACE && Object.keys(changes).length > 0) {
-    scheduleRuleUpdate().catch(() => {
-      chrome.runtime.sendMessage({ type: 'rule-update-failed' }).catch(() => {});
-    });
+  try {
+    await scheduleRuleUpdate();
+  } catch {
+    await notifyRuleUpdateFailure();
   }
-});
+}
+
+chrome.runtime.onInstalled.addListener(refreshRules);
+chrome.runtime.onStartup.addListener(refreshRules);
+chrome.action.onClicked.addListener(openSidePanel);
+chrome.storage.onChanged.addListener(handleStorageChange);
 
 // Background contexts can start independently of browser startup events.
-scheduleRuleUpdate().catch(() => {});
+refreshRules();

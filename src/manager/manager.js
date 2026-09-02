@@ -542,35 +542,28 @@ function showConfirmModal(message, { confirmLabel = 'Delete', danger = true } = 
     elements.confirmLabel.textContent = confirmLabel;
     elements.confirmIcon.hidden = !danger;
     elements.confirmOk.className = danger ? 'danger-button' : 'primary-button';
-    elements.confirmModal.classList.remove('hidden');
-    elements.confirmCancel.focus();
+    elements.confirmModal.returnValue = '';
 
-    const cleanup = result => {
-      elements.confirmModal.classList.add('hidden');
+    const finish = result => {
       elements.confirmOk.onclick = null;
       elements.confirmCancel.onclick = null;
-      elements.confirmModal.removeEventListener('keydown', handleKeydown);
+      elements.confirmModal.removeEventListener('close', handleClose);
       state.pendingConfirmation = null;
       previousFocus?.focus();
       resolve(result);
     };
 
-    const handleKeydown = event => {
-      if (event.key === 'Escape') cleanup(false);
-      if (event.key !== 'Tab') return;
-
-      if (event.shiftKey && document.activeElement === elements.confirmCancel) {
-        event.preventDefault();
-        elements.confirmOk.focus();
-      } else if (!event.shiftKey && document.activeElement === elements.confirmOk) {
-        event.preventDefault();
-        elements.confirmCancel.focus();
-      }
+    const handleClose = () => {
+      finish(elements.confirmModal.returnValue === 'confirm');
     };
 
-    state.pendingConfirmation = cleanup;
-    elements.confirmModal.addEventListener('keydown', handleKeydown);
-    elements.confirmOk.onclick = () => cleanup(true);
-    elements.confirmCancel.onclick = () => cleanup(false);
+    const close = value => elements.confirmModal.close(value);
+
+    state.pendingConfirmation = result => close(result ? 'confirm' : 'cancel');
+    elements.confirmModal.addEventListener('close', handleClose);
+    elements.confirmOk.onclick = () => close('confirm');
+    elements.confirmCancel.onclick = () => close('cancel');
+    elements.confirmModal.showModal();
+    elements.confirmCancel.focus();
   });
 }

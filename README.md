@@ -11,7 +11,7 @@ For the canonical installation and usage guide, see [How to use Linker](https://
 
 ## Description
 
-At this time ( it will update ) it does the following:
+Linker currently provides:
 
 - Add, search, delete, and edit _go/link_ based URLs.
 - Open shortcuts by clicking them or typing `go/<value>` in the browser.
@@ -45,6 +45,9 @@ is shared by compatible Chromium-based browsers. Before releasing, load Linker
 in current Chrome and Brave, verify the side panel and its URL prefill at narrow
 and wide widths, then create direct and parameterized shortcuts, verify both
 redirect, restart each browser, and verify the redirects again.
+
+Linker supports both light and dark system themes. Shortcut data is stored in
+Chrome sync storage; Linker does not send it to a developer-operated service.
 
 ## Is there a Google Extension Store URL available?
 
