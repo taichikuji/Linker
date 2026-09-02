@@ -107,7 +107,7 @@ test('validates imported shortcuts and uses native manager semantics', () => {
 test('manifest references valid release assets without a browser-version pin', () => {
   const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 
-  assert.equal(manifest.version, '2.1.1');
+  assert.equal(manifest.version, '2.1.2');
   assert.equal(manifest.minimum_chrome_version, undefined);
   assert.equal(manifest.manifest_version, 3);
   Object.values(manifest.icons).forEach(path => assert.equal(existsSync(join(root, path)), true));
