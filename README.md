@@ -1,66 +1,96 @@
-# Linker
+<p align="center">
+  <img src="assets/icon_color.svg" alt="Linker mascot" width="128">
+</p>
 
-A small browser extension for creating personal URL shortcuts.
+<h1 align="center">Linker</h1>
+
+<p align="center">
+  Create personal <code>go/</code> shortcuts for the websites you use most.
+</p>
+
+Linker gives frequently visited URLs a short, memorable name. Create a
+shortcut such as `go/docs`, type it in the address bar when you need it, and
+let the browser take you there.
+
+It is a small tool for your own browser, not a new service to sign up for. The
+manager lives in the browser's side panel, and your shortcut data stays in
+Chrome sync storage rather than being sent to a developer-operated backend.
+
+## What it does
+
+- Create, edit, search, and delete personal `go/` shortcuts.
+- Open shortcuts from the manager or by entering `go/<shortcut>` in the address bar.
+- Use `{*}` for parameterized shortcuts, such as `go/issues/123`.
+- Define a default destination for a parameterized shortcut when no value is supplied.
+- Open the manager in Chromium's side panel.
+- Import and export shortcut data as JSON.
+- Keep shortcuts available through Chrome sync storage.
+- Respect light and dark system themes.
+- Migrate compatible shortcut data from [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj).
+
+For examples and the full explanation, see the [How to use Linker guide](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
+
+## What it does not do
+
+- It is not a public URL shortener or a link-hosting service.
+- It does not proxy, inspect, or rewrite the destination server's content.
+- It is not a general bookmark manager with folders, tags, or a reading queue.
+- It does not need a separate Linker account or developer-operated backend.
+- It does not replace the browser's history, bookmarks, or ordinary search.
+
+Linker keeps the useful part simple: give a URL a name, then use that name
+when you already know where you want to go.
 
 ## Installation
 
 Linker supports current desktop Chromium browsers, including Google Chrome,
 Brave, Microsoft Edge, Opera, Vivaldi, and compatible Chromium forks.
 
-For the canonical installation and usage guide, see [How to use Linker](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
+1. Open your browser's extensions page (`chrome://extensions`,
+   `brave://extensions`, or `edge://extensions`).
+2. Enable **Developer mode**.
+3. Choose **Load unpacked** and select this directory.
+4. Pin Linker to the toolbar so its side panel is easy to open.
 
-## Description
+For the canonical usage instructions, see the [How to use Linker guide](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
 
-Linker currently provides:
+## A small note about Firefox
 
-- Add, search, delete, and edit _go/link_ based URLs.
-- Open shortcuts by clicking them or typing `go/<value>` in the browser.
-- Use `{*}` for dynamic, parameterized links.
-- Export and import shortcut data, compatible with [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj).
+Linker was created for Chromium-based browsers and has not been fully tested
+on Firefox. Firefox support has also not been requested, so maintaining a build
+that cannot be confidently validated is outside Linker's current scope.
 
-For the examples and the full explanation, see the [How to use Linker](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker) guide.
+## Development
 
-## Why is there no Firefox build?
-
-Linker was created for Chromium-based browsers and has never been fully tested
-on Firefox. It has also not been actively used there, nor has Firefox support
-been requested. Maintaining a build that cannot be confidently validated is
-therefore outside Linker's scope.
-
-## Tag versioning workflow
-
-For the workflow on how to generate and push new releases with tags, read [GUIDE.md](.github/workflows/GUIDE.md)
-
-## Testing
-
-Run the zero-dependency test suite with Node.js 20 or newer:
+The project has no runtime dependencies. Run the test suite with Node.js 20 or
+newer:
 
 ```bash
 node --test
 ```
 
-The tests execute the real background and manager scripts against Chromium's
-standard `chrome.*` extension API namespace; despite its name, that namespace
-is shared by compatible Chromium-based browsers. Before releasing, load Linker
-in current Chrome and Brave, verify the side panel and its URL prefill at narrow
-and wide widths, then create direct and parameterized shortcuts, verify both
-redirect, restart each browser, and verify the redirects again.
+Before releasing, test the extension in Chrome and at least one other Chromium
+browser such as Brave or Edge. Check the side panel at narrow and wide widths,
+URL prefill, direct and parameterized shortcuts, import/export, redirect rules,
+and behavior after restarting the browser. The release workflow is documented
+in [GUIDE.md](.github/workflows/GUIDE.md).
 
-Linker supports both light and dark system themes. Shortcut data is stored in
-Chrome sync storage; Linker does not send it to a developer-operated service.
+## Contributing
 
-## Is there a Google Extension Store URL available?
+Linker is intentionally small, but sensible improvements are welcome. If an
+idea solves a real problem without making personal shortcuts harder to
+understand, open an issue or pull request and explain the use case.
 
-Not at this time. Thinking about having to pay 5$ just to upload it hurts my soul a little bit. If someone donates that amount I will ensure to upload it in due time. Teehee.
+## Support
 
-If you want to help me with this, I'd really appreciate it, just go ahead and drop a coffee here: [paypal.me](https://paypal.me/ivanperezf)
+Linker is not currently published in the Chrome Web Store. If you would like
+to help with that someday, you can [buy the author a coffee via PayPal](https://paypal.me/ivanperezf).
 
-## What is the color palette of the project's icon?
+## Icon palette
 
-* White: [#fce7d2](https://www.color-hex.com/color/fce7d2)
-* Orange: [#db8758](https://www.color-hex.com/color/db8758)
-* Brown: [#b13d14](https://www.color-hex.com/color/b13d14)
+- White: [#fce7d2](https://www.color-hex.com/color/fce7d2)
+- Orange: [#db8758](https://www.color-hex.com/color/db8758)
+- Brown: [#b13d14](https://www.color-hex.com/color/b13d14)
 
----
-
-Anyways that's it for real now. Thanks as always. If you find bugs or errors report them accordingly.
+Found a bug or have an idea? Please report it with enough context to reproduce
+the behavior. Thanks for taking the time to use Linker.
