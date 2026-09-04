@@ -217,6 +217,7 @@ function createEntry([shortcut, value]) {
   favicon.src = chrome.runtime.getURL(`_favicon/?pageUrl=${encodeURIComponent(openUrl)}&size=32`);
   favicon.onerror = () => {
     icon.replaceChildren();
+    icon.classList.add('shortcut-icon-fallback');
     icon.textContent = shortcut.charAt(0).toLocaleUpperCase();
   };
   icon.appendChild(favicon);

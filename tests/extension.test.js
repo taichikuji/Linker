@@ -13,6 +13,10 @@ const managerSource = readFileSync(
   join(root, 'src/manager/manager.js'),
   'utf8'
 );
+const managerStyles = readFileSync(
+  join(root, 'src/manager/manager.css'),
+  'utf8'
+);
 const clone = value => JSON.parse(JSON.stringify(value));
 
 function eventSlot(listeners, name) {
@@ -128,7 +132,8 @@ function runManager(initialEntries = {}, options = {}) {
       children: [],
       classList: {
         add: (...names) => names.forEach(name => classes.add(name)),
-        remove: (...names) => names.forEach(name => classes.delete(name))
+        remove: (...names) => names.forEach(name => classes.delete(name)),
+        contains: name => classes.has(name)
       },
       dataset: {},
       files: [],
@@ -298,6 +303,8 @@ test('manager validates import and export through the Chromium extension API', a
 
 test('manager renders browser-cached favicons with shortcut-letter fallbacks', () => {
   const result = runManager();
+  const iconRule = managerStyles.match(/\.shortcut-icon \{([^}]*)\}/)?.[1];
+  const fallbackRule = managerStyles.match(/\.shortcut-icon-fallback \{([^}]*)\}/)?.[1];
   const directRow = vm.runInContext(
     "createEntry(['docs', { url: 'https://example.com/docs' }])",
     result.context
@@ -307,6 +314,9 @@ test('manager renders browser-cached favicons with shortcut-letter fallbacks', (
 
   assert.equal(directFavicon.className, 'shortcut-favicon');
   assert.equal(directFavicon.alt, '');
+  assert.doesNotMatch(iconRule, /background:/);
+  assert.match(fallbackRule, /background:/);
+  assert.equal(directIcon.classList.contains('shortcut-icon-fallback'), false);
   assert.equal(
     directFavicon.src,
     'chrome-extension://linker/_favicon/?pageUrl=https%3A%2F%2Fexample.com%2Fdocs&size=32'
@@ -314,6 +324,7 @@ test('manager renders browser-cached favicons with shortcut-letter fallbacks', (
 
   directFavicon.onerror();
   assert.equal(directIcon.children.length, 0);
+  assert.equal(directIcon.classList.contains('shortcut-icon-fallback'), true);
   assert.equal(directIcon.textContent, 'D');
 
   const parameterizedRow = vm.runInContext(`createEntry(['issue', {
