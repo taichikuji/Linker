@@ -21,6 +21,7 @@ Chrome sync storage rather than being sent to a developer-operated backend.
 <p align="center">
   <img src="assets/linker-preview.webp" alt="Linker preview" width="720">
 </p>
+
 ## What it does
 
 - Create, edit, search, and delete personal `go/` shortcuts.
