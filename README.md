@@ -16,6 +16,11 @@ It is a small tool for your own browser, not a new service to sign up for. The
 manager lives in the browser's side panel, and your shortcut data stays in
 Chrome sync storage rather than being sent to a developer-operated backend.
 
+## Preview
+
+<p align="center">
+  <img src="assets/linker-preview.webp" alt="Linker preview" width="720">
+</p>
 ## What it does
 
 - Create, edit, search, and delete personal `go/` shortcuts.
