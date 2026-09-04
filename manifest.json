@@ -13,6 +13,7 @@
   "permissions": [
     "storage",
     "tabs",
+    "favicon",
     "declarativeNetRequest",
     "sidePanel"
   ],
