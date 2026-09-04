@@ -346,6 +346,14 @@ details:not([open]) > .panel-summary .disclosure-icon {
   font-weight: 700;
 }
 
+.shortcut-favicon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: contain;
+}
+
 .shortcut-copy {
   display: flex;
   min-width: 0;

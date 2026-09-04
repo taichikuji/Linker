@@ -185,6 +185,7 @@ function runManager(initialEntries = {}, options = {}) {
       MAX_NUMBER_OF_REGEX_RULES: 1000
     },
     runtime: {
+      getURL: path => `chrome-extension://linker/${path}`,
       onMessage: eventSlot(listeners, 'runtimeMessage')
     },
     storage: {
@@ -293,6 +294,38 @@ test('manager validates import and export through the Chromium extension API', a
       fallbackUrl: 'https://github.com/issues'
     }
   });
+});
+
+test('manager renders browser-cached favicons with shortcut-letter fallbacks', () => {
+  const result = runManager();
+  const directRow = vm.runInContext(
+    "createEntry(['docs', { url: 'https://example.com/docs' }])",
+    result.context
+  );
+  const directIcon = directRow.querySelector('.shortcut-icon');
+  const [directFavicon] = directIcon.children;
+
+  assert.equal(directFavicon.className, 'shortcut-favicon');
+  assert.equal(directFavicon.alt, '');
+  assert.equal(
+    directFavicon.src,
+    'chrome-extension://linker/_favicon/?pageUrl=https%3A%2F%2Fexample.com%2Fdocs&size=32'
+  );
+
+  directFavicon.onerror();
+  assert.equal(directIcon.children.length, 0);
+  assert.equal(directIcon.textContent, 'D');
+
+  const parameterizedRow = vm.runInContext(`createEntry(['issue', {
+    url: 'https://github.com/issues/{*}',
+    fallbackUrl: 'https://github.com/issues'
+  }])`, result.context);
+  const [parameterizedFavicon] = parameterizedRow.querySelector('.shortcut-icon').children;
+
+  assert.equal(
+    parameterizedFavicon.src,
+    'chrome-extension://linker/_favicon/?pageUrl=https%3A%2F%2Fgithub.com%2Fissues&size=32'
+  );
 });
 
 test('opening the editor reads the current URL and saves it', async () => {
@@ -473,5 +506,6 @@ test('manifest defines a Chromium MV3 service worker', () => {
     'src/manager/manager.html'
   );
   assert.equal(manifest.permissions.includes('sidePanel'), true);
+  assert.equal(manifest.permissions.includes('favicon'), true);
   assert.equal(manifest.permissions.includes('unlimitedStorage'), false);
 });

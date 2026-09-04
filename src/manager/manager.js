@@ -209,8 +209,17 @@ function createEntry([shortcut, value]) {
   const deleteButton = row.querySelector('.shortcut-delete');
   const parameterized = hasVariable(value.url);
   const openUrl = parameterized ? value.fallbackUrl : value.url;
+  const icon = row.querySelector('.shortcut-icon');
+  const favicon = document.createElement('img');
 
-  row.querySelector('.shortcut-icon').textContent = shortcut.charAt(0).toLocaleUpperCase();
+  favicon.className = 'shortcut-favicon';
+  favicon.alt = '';
+  favicon.src = chrome.runtime.getURL(`_favicon/?pageUrl=${encodeURIComponent(openUrl)}&size=32`);
+  favicon.onerror = () => {
+    icon.replaceChildren();
+    icon.textContent = shortcut.charAt(0).toLocaleUpperCase();
+  };
+  icon.appendChild(favicon);
   row.querySelector('.shortcut-name').textContent = `go/${shortcut}`;
   row.querySelector('.variable-badge').hidden = !parameterized;
   row.querySelector('.shortcut-url').textContent = getTargetLabel(openUrl);
