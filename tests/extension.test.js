@@ -433,8 +433,9 @@ test('manager confirms normalized import replacements', async () => {
   assert.deepEqual(result.getEntries(), { gh: { url: 'https://example.com/' } });
 });
 
-test('editing opens the editor and cancel resets it', async () => {
-  const result = runManager({ gh: { url: 'https://github.com/' } });
+test('cancel closes an edit without touching its destination, then reopens for a new shortcut', async () => {
+  const activeTab = { url: 'https://example.com/current' };
+  const result = runManager({ gh: { url: 'https://github.com/' } }, { activeTab });
   const editorSection = result.elements.get('add-section');
   editorSection.open = false;
 
@@ -444,11 +445,39 @@ test('editing opens the editor and cancel resets it', async () => {
   assert.equal(editorSection.open, true);
   assert.equal(result.context.document.activeElement, result.elements.get('full-link'));
 
+  const urlInput = result.elements.get('full-link');
+  Object.defineProperty(urlInput, 'value', {
+    configurable: true,
+    get() { throw new Error('Cancel must not read the destination'); },
+    set() { throw new Error('Cancel must not write the destination'); }
+  });
   await result.elements.get('cancel-edit').dispatch('click');
 
-  assert.equal(editorSection.open, true);
-  assert.equal(result.elements.get('full-link').value, '');
+  assert.equal(editorSection.open, false);
   assert.equal(result.elements.get('form-title').textContent, 'Add new shortcut');
+  assert.equal(result.context.document.activeElement, editorSection.querySelector('summary'));
+  Object.defineProperty(urlInput, 'value', { configurable: true, writable: true, value: 'https://github.com/' });
+
+  for (const url of ['https://example.com/current', 'https://example.com/latest']) {
+    activeTab.url = url;
+    editorSection.open = true;
+    await editorSection.dispatch('toggle');
+    assert.equal(urlInput.value, url);
+    assert.equal(result.elements.get('cancel-edit').hidden, false);
+    await result.elements.get('cancel-edit').dispatch('click');
+    assert.equal(editorSection.open, false);
+    assert.equal(urlInput.value, url);
+  }
+
+  editorSection.open = true;
+  await editorSection.dispatch('toggle');
+  result.elements.get('go-link').value = 'new';
+  await result.elements.get('editor-form').dispatch('submit');
+  assert.deepEqual(result.getEntries(), {
+    gh: { url: 'https://github.com/' },
+    new: { url: activeTab.url }
+  });
+  assert.doesNotMatch(readFileSync(join(root, 'src/manager/manager.html'), 'utf8'), /<button[^>]*id="cancel-edit"[^>]*\bhidden\b/);
 });
 
 test('toolbar click focuses search without opening the editor or clearing drafts', async () => {
@@ -479,7 +508,7 @@ test('manager displays background routing failures', async () => {
   assert.equal(result.elements.get('toast').dataset.type, 'error');
 });
 
-test('opening the editor preserves an existing draft', async () => {
+test('opening the editor refreshes the destination from the active tab', async () => {
   const result = runManager({}, { activeTab: { url: 'https://example.com/current' } });
   await vm.runInContext('initialize()', result.context);
   result.elements.get('full-link').value = 'https://example.com/draft';
@@ -488,8 +517,8 @@ test('opening the editor preserves an existing draft', async () => {
   editorSection.open = true;
   await editorSection.dispatch('toggle');
 
-  assert.equal(result.elements.get('full-link').value, 'https://example.com/draft');
-  assert.deepEqual(result.tabQueries, []);
+  assert.equal(result.elements.get('full-link').value, 'https://example.com/current');
+  assert.deepEqual(result.tabQueries, [{ active: true, currentWindow: true }]);
 });
 
 test('side panel ignores focus messages for other windows', async () => {
