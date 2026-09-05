@@ -73,12 +73,12 @@ async function initialize() {
 }
 
 async function prefillActiveTab() {
-  if (state.editingShortcut || elements.urlInput.value || elements.shortcutInput.value) return;
+  if (state.editingShortcut) return;
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!isValidTargetUrl(tab?.url)) return;
-    elements.urlInput.value = tab.url;
+    if (!elements.addSection.open || state.editingShortcut) return;
+    elements.urlInput.value = isValidTargetUrl(tab?.url) ? tab.url : '';
     updateVariableFields();
   } catch (error) {
     console.error('Error reading the current tab:', error);
@@ -101,7 +101,11 @@ function setupEventListeners() {
   });
   elements.urlInput.addEventListener('input', updateVariableFields);
   elements.addSection.addEventListener('toggle', () => elements.addSection.open && prefillActiveTab());
-  elements.cancelEditButton.addEventListener('click', resetForm);
+  elements.cancelEditButton.addEventListener('click', () => {
+    resetForm();
+    elements.addSection.open = false;
+    elements.addSection.querySelector('summary').focus();
+  });
   elements.helpButton.addEventListener('click', openHelp);
   elements.importButton.addEventListener('click', () => elements.fileInput.click());
   elements.fileInput.addEventListener('change', importShortcuts);
@@ -254,7 +258,6 @@ function startEditing(shortcut) {
   elements.fallbackInput.value = entry.fallbackUrl ?? '';
   elements.formTitle.textContent = `Edit go/${shortcut}`;
   elements.saveButton.textContent = 'Save changes';
-  elements.cancelEditButton.hidden = false;
   updateVariableFields();
   elements.addSection.open = true;
   elements.urlInput.focus();
@@ -263,12 +266,9 @@ function startEditing(shortcut) {
 function resetForm() {
   state.editingShortcut = null;
   elements.shortcutInput.value = '';
-  elements.urlInput.value = '';
   elements.fallbackInput.value = '';
   elements.formTitle.textContent = 'Add new shortcut';
   elements.saveButton.textContent = 'Save shortcut';
-  elements.cancelEditButton.hidden = true;
-  updateVariableFields();
 }
 
 function updateVariableFields() {
