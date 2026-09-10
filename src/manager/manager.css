@@ -25,17 +25,20 @@
   --yellow: light-dark(#df8e1d, #f9e2af);
   --green: light-dark(#40a02b, #a6e3a1);
   --blue: light-dark(#1e66f5, #89b4fa);
-  --lavender: light-dark(#7287fd, #b4befe);
-  --text: light-dark(#4c4f69, #cdd6f4);
-  --muted: light-dark(#6c6f85, #a6adc8);
-  --surface1: light-dark(#bcc0cc, #45475a);
-  --surface0: light-dark(#ccd0da, #313244);
-  --base: light-dark(#eff1f5, #1e1e2e);
-  --mantle: light-dark(#e6e9ef, #181825);
+  --blue-text: light-dark(#1b5cdd, #89b4fa);
+  --yellow-border: light-dark(#cb811a, #f9e2af);
+  --green-border: light-dark(#3c9528, #a6e3a1);
+  --text: light-dark(#35363a, #e4e5e7);
+  --muted: light-dark(#666970, #a8abb2);
+  --overlay0: light-dark(#898c91, #747881);
+  --surface1: light-dark(#c9cbce, #36383d);
+  --surface0: light-dark(#dddfe1, #27282c);
+  --base: light-dark(#f4f4f3, #1a1b1e);
+  --mantle: light-dark(#e9e9e7, #141518);
   --surface: light-dark(#ffffff, var(--surface0));
   --surface-hover: light-dark(var(--surface0), var(--surface1));
   --border: light-dark(var(--surface0), var(--surface1));
-  --focus-ring: light-dark(var(--blue), var(--lavender));
+  --focus-ring: var(--blue);
   --shadow: light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.3));
 }
 
@@ -240,7 +243,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
   gap: 8px;
   margin: 20px 20px 10px;
   padding: 0 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--overlay0);
   border-radius: 8px;
   background: var(--base);
   color: var(--muted);
@@ -274,7 +277,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
 .capacity-warning {
   margin: 0 20px 10px;
   padding: 9px 10px;
-  border: 1px solid var(--yellow);
+  border: 1px solid var(--yellow-border);
   border-radius: 7px;
   background: color-mix(in srgb, var(--yellow) 10%, transparent);
   font-size: 11px;
@@ -345,7 +348,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
   place-items: center;
   border-radius: 8px;
   background: var(--mantle);
-  color: var(--blue);
+  color: var(--blue-text);
   font-weight: 700;
 }
 
@@ -388,11 +391,16 @@ details:not([open]) > .panel-summary .disclosure-icon {
   font-size: 11px;
 }
 
+.shortcut-item:hover .shortcut-url,
+.shortcut-item:focus-within .shortcut-url {
+  color: var(--text);
+}
+
 .variable-badge {
   padding: 2px 6px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--blue) 16%, transparent);
-  color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 16%, var(--surface));
+  color: var(--blue-text);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -502,7 +510,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
 .conditional-field input,
 .shortcut-field {
   width: 100%;
-  border: 1px solid var(--border);
+  border: 1px solid var(--overlay0);
   border-radius: 7px;
   background: var(--base);
   color: var(--text);
@@ -525,7 +533,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
 
 .shortcut-field span {
   padding: 9px 0 9px 10px;
-  color: var(--blue);
+  color: var(--blue-text);
   font-weight: 700;
 }
 
@@ -545,7 +553,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
 }
 
 .field-hint code {
-  color: var(--blue);
+  color: var(--blue-text);
   font-weight: 700;
 }
 
@@ -609,7 +617,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid var(--green);
+  border: 1px solid var(--green-border);
   border-radius: 7px;
   background: var(--mantle);
   box-shadow: 0 5px 18px var(--shadow);
