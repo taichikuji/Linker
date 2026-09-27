@@ -70,7 +70,7 @@ function runBackground(options = {}) {
     },
     storage: {
       sync: {
-        get: async () => ({
+        get: async () => options.entries ?? ({
           gh: { url: 'https://github.com/' },
           issue: {
             url: 'https://github.com/taichikuji/Linker/issues/{*}',
@@ -278,6 +278,24 @@ test('background initializes through the Chromium extension API', async () => {
   );
 });
 
+test('unroutable stored names cannot break valid redirect rules', async () => {
+  const entries = Object.fromEntries(['gh', 'café', '.', 'a^b'].map(name => [
+    name, { url: 'https://example.com/' }
+  ]));
+  const { updated } = runBackground({ entries });
+  const update = await updated;
+
+  assert.deepEqual(update.addRules.map(rule => rule.condition.regexFilter), [
+    '^https?://go/gh/?$'
+  ]);
+
+  const manager = runManager();
+  for (const name of ['café', '.', '..', 'a^b', 'a{b}']) {
+    assert.equal(vm.runInContext(`isValidShortcut(${JSON.stringify(name)})`, manager.context), false);
+  }
+  assert.equal(vm.runInContext("isValidShortcut('foo.bar')", manager.context), true);
+});
+
 test('manager validates import and export through the Chromium extension API', async () => {
   const result = runManager({
     gh: { url: 'https://github.com/' },
@@ -292,10 +310,13 @@ test('manager validates import and export through the Chromium extension API', a
   const imported = JSON.parse(vm.runInContext(`JSON.stringify(parseImportData({
     docs: 'https://example.com/docs/',
     issue: { url: 'https://github.com/issues/{*}', fallbackUrl: 'https://github.com/issues' },
+    'café': 'https://example.com/',
+    '.': 'https://example.com/',
+    'a^b': 'https://example.com/',
     unsafe: 'javascript:alert(1)'
   }))`, result.context));
   assert.deepEqual(Object.keys(imported.entries), ['docs', 'issue']);
-  assert.equal(imported.skippedCount, 1);
+  assert.equal(imported.skippedCount, 4);
 
   const exported = JSON.parse(vm.runInContext(
     'JSON.stringify(createExportData(state.entries))',
@@ -455,6 +476,33 @@ test('manager confirms normalized import replacements', async () => {
   await importing;
 
   assert.deepEqual(result.getEntries(), { gh: { url: 'https://example.com/' } });
+});
+
+test('built-in object names can be saved and imported as shortcuts', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  result.elements.get('go-link').value = 'constructor';
+  result.elements.get('full-link').value = 'https://example.com/';
+  await result.elements.get('editor-form').dispatch('submit');
+  assert.deepEqual(result.getEntries(), { constructor: { url: 'https://example.com/' } });
+
+  result.elements.get('go-link').value = '__proto__';
+  await result.elements.get('editor-form').dispatch('submit');
+  assert.equal(vm.runInContext("Object.hasOwn(state.entries, '__proto__')", result.context), true);
+
+  const importingManager = runManager();
+  await vm.runInContext('initialize()', importingManager.context);
+  importingManager.elements.get('import-file').files = [{
+    size: 100,
+    text: async () => JSON.stringify({ constructor: 'https://example.com/other' })
+  }];
+  const importing = importingManager.elements.get('import-file').dispatch('change');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(Boolean(importingManager.elements.get('confirm-modal').open), false);
+  await importing;
+  assert.deepEqual(importingManager.getEntries(), {
+    constructor: { url: 'https://example.com/other' }
+  });
 });
 
 test('cancel closes an edit without touching its destination, then reopens for a new shortcut', async () => {

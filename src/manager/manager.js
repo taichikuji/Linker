@@ -125,7 +125,8 @@ function isStoredEntry(value) {
 function isValidShortcut(shortcut) {
   return shortcut.length > 0
     && shortcut.length <= CONFIG.MAX_SHORTCUT_LENGTH
-    && !/[\s/?#&%\\]/u.test(shortcut);
+    && !/[\s/?#&%\\]/u.test(shortcut)
+    && new URL(`http://go/${shortcut}`).pathname === `/${shortcut}`;
 }
 
 function isValidTargetUrl(url) {
@@ -287,12 +288,12 @@ async function saveShortcut() {
   const fallbackUrl = elements.fallbackInput.value.trim();
 
   if (!isValidShortcut(shortcut)) {
-    showToast('Use a shortcut without spaces or URL punctuation.', 'error');
+    showToast('Use a URL-safe shortcut without spaces or accents.', 'error');
     elements.shortcutInput.focus();
     return;
   }
 
-  if (state.entries[shortcut] && shortcut !== originalShortcut) {
+  if (Object.hasOwn(state.entries, shortcut) && shortcut !== originalShortcut) {
     showToast(`go/${shortcut} already exists. Edit that shortcut instead.`, 'error');
     elements.shortcutInput.focus();
     return;
@@ -313,9 +314,8 @@ async function saveShortcut() {
   const entry = { url };
   if (hasVariable(url)) entry.fallbackUrl = fallbackUrl;
 
-  const nextEntries = { ...state.entries };
+  const nextEntries = { ...state.entries, [shortcut]: entry };
   if (originalShortcut && originalShortcut !== shortcut) delete nextEntries[originalShortcut];
-  nextEntries[shortcut] = entry;
 
   if (countRedirectRules(nextEntries) > MAX_REGEX_RULES) {
     showToast(`Cannot save: browser limit is ${MAX_REGEX_RULES} redirect rules.`, 'error');
@@ -458,7 +458,7 @@ async function importShortcuts(event) {
       throw new Error(`Import exceeds the browser limit of ${MAX_REGEX_RULES} redirect rules.`);
     }
     const replacementCount = Object.keys(imported.entries)
-      .filter(shortcut => shortcut in state.entries)
+      .filter(shortcut => Object.hasOwn(state.entries, shortcut))
       .length;
     if (replacementCount > 0) {
       const confirmed = await showConfirmModal(

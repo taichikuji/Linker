@@ -71,7 +71,6 @@ If you're adding new features or changing existing ones, please update the docum
 
 - Docstrings in the code
 - Comments explaining complex logic
-- Updating the PROJECT_GUIDE.md if necessary
 
 ## Questions?
 

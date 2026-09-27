@@ -22,10 +22,9 @@ jobs:
       - name: Set version
         id: version
         run: |
+          VERSION=$(jq -r .version manifest.json)
           if [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-          else
-            VERSION=$(jq -r .version manifest.json)
+            test "${GITHUB_REF#refs/tags/v}" = "$VERSION"
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
