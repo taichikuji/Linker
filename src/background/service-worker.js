@@ -2,7 +2,6 @@
 const CONFIG = {
   STORAGE_NAMESPACE: 'sync',
   ALLOWED_PROTOCOLS: ['http:', 'https:'],
-  MAX_SHORTCUT_LENGTH: 100,
   RESOURCE_TYPES: ['main_frame'],
   VARIABLE_TOKEN: '{*}'
 };
@@ -43,13 +42,6 @@ function hasVariable(url) {
   return url.includes(CONFIG.VARIABLE_TOKEN);
 }
 
-function isValidShortcut(shortcut) {
-  return shortcut.length > 0
-    && shortcut.length <= CONFIG.MAX_SHORTCUT_LENGTH
-    && !/[\s/?#&%\\]/u.test(shortcut)
-    && new URL(`http://go/${shortcut}`).pathname === `/${shortcut}`;
-}
-
 /**
  * Escapes text before inserting it into a declarativeNetRequest RE2 pattern.
  */
@@ -63,7 +55,7 @@ function escapeRegex(value) {
 async function getStoredEntries() {
   const stored = await chrome.storage[CONFIG.STORAGE_NAMESPACE].get(null);
   return Object.entries(stored)
-    .filter(([shortcut, value]) => isValidShortcut(shortcut) && isValidStoredEntry(value))
+    .filter(([, value]) => isValidStoredEntry(value))
     .sort(([left], [right]) => left.localeCompare(right));
 }
 

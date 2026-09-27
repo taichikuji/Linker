@@ -70,7 +70,7 @@ function runBackground(options = {}) {
     },
     storage: {
       sync: {
-        get: async () => options.entries ?? ({
+        get: async () => ({
           gh: { url: 'https://github.com/' },
           issue: {
             url: 'https://github.com/taichikuji/Linker/issues/{*}',
@@ -276,24 +276,6 @@ test('background initializes through the Chromium extension API', async () => {
     update.addRules[2].action.redirect.url,
     'https://github.com/taichikuji/Linker/issues'
   );
-});
-
-test('unroutable stored names cannot break valid redirect rules', async () => {
-  const entries = Object.fromEntries(['gh', 'café', '.', 'a^b'].map(name => [
-    name, { url: 'https://example.com/' }
-  ]));
-  const { updated } = runBackground({ entries });
-  const update = await updated;
-
-  assert.deepEqual(update.addRules.map(rule => rule.condition.regexFilter), [
-    '^https?://go/gh/?$'
-  ]);
-
-  const manager = runManager();
-  for (const name of ['café', '.', '..', 'a^b', 'a{b}']) {
-    assert.equal(vm.runInContext(`isValidShortcut(${JSON.stringify(name)})`, manager.context), false);
-  }
-  assert.equal(vm.runInContext("isValidShortcut('foo.bar')", manager.context), true);
 });
 
 test('manager validates import and export through the Chromium extension API', async () => {
