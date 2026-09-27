@@ -30,6 +30,9 @@
       "32": "assets/icon_32.png"
     }
   },
+  "omnibox": {
+    "keyword": "go/"
+  },
   "side_panel": {
     "default_path": "src/manager/manager.html"
   },

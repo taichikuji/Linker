@@ -153,6 +153,14 @@ async function openSidePanel(sourceTab) {
 
 chrome.action.onClicked.addListener(openSidePanel);
 
+chrome.omnibox.onInputEntered.addListener((text, disposition) => {
+  const url = `http://go/${text.trim()}`;
+  const navigation = disposition === 'currentTab'
+    ? chrome.tabs.update({ url })
+    : chrome.tabs.create({ url, active: disposition === 'newForegroundTab' });
+  navigation.catch(error => console.error('Error opening Linker shortcut:', error));
+});
+
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === CONFIG.STORAGE_NAMESPACE && Object.keys(changes).length > 0) {
     // Storage has already accepted the shortcut; only the browser routing failed.

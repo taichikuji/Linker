@@ -31,6 +31,7 @@ function runBackground(options = {}) {
   const listeners = {};
   const runtimeMessages = [];
   const openedPanels = [];
+  const navigations = [];
   const errors = [];
   let ruleUpdateCalls = 0;
   let resolveUpdate;
@@ -59,6 +60,13 @@ function runBackground(options = {}) {
           listeners.actionClicked = listener;
         }
       }
+    },
+    omnibox: {
+      onInputEntered: eventSlot(listeners, 'omniboxInputEntered')
+    },
+    tabs: {
+      update: async details => navigations.push(['update', clone(details)]),
+      create: async details => navigations.push(['create', clone(details)])
     },
     storage: {
       sync: {
@@ -97,6 +105,7 @@ function runBackground(options = {}) {
     runtimeMessages,
     errors,
     openedPanels,
+    navigations,
     getRuleUpdateCalls: () => ruleUpdateCalls
   };
 }
@@ -381,6 +390,21 @@ test('toolbar click opens the side panel and focuses search', async () => {
   }]);
 });
 
+test('omnibox keyword opens local shortcuts in the requested tab', async () => {
+  const result = runBackground();
+  await result.updated;
+
+  result.listeners.omniboxInputEntered(' docs ', 'currentTab');
+  result.listeners.omniboxInputEntered('issues/123', 'newForegroundTab');
+  result.listeners.omniboxInputEntered('gh', 'newBackgroundTab');
+
+  assert.deepEqual(result.navigations, [
+    ['update', { url: 'http://go/docs' }],
+    ['create', { url: 'http://go/issues/123', active: true }],
+    ['create', { url: 'http://go/gh', active: false }]
+  ]);
+});
+
 test('opening the editor ignores internal browser URLs', async () => {
   const result = runManager({}, { activeTab: { url: 'chrome://extensions' } });
   await vm.runInContext('initialize()', result.context);
@@ -547,6 +571,7 @@ test('manifest defines a Chromium MV3 service worker', () => {
   );
   assert.equal(manifest.permissions.includes('sidePanel'), true);
   assert.equal(manifest.permissions.includes('favicon'), true);
+  assert.equal(manifest.omnibox.keyword, 'go/');
   assert.deepEqual(manifest.host_permissions, ['*://go/*']);
   assert.equal(manifest.permissions.includes('unlimitedStorage'), false);
 });
