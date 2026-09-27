@@ -70,13 +70,11 @@ function buildRedirectRules(entries) {
 
   entries.forEach(([shortcut, value]) => {
     const directShortcut = escapeRegex(shortcut);
-    const encodedShortcut = escapeRegex(encodeURIComponent(shortcut));
     const parameterized = hasVariable(value.url);
     const defaultUrl = parameterized ? value.fallbackUrl : value.url;
 
     if (parameterized) {
-      // Group 1 captures a path value; group 2 captures the encoded query-string value.
-      const regexSubstitution = value.url.replaceAll(CONFIG.VARIABLE_TOKEN, '\\1\\2');
+      const regexSubstitution = value.url.replaceAll(CONFIG.VARIABLE_TOKEN, '\\1');
 
       rules.push({
         id: nextRuleId++,
@@ -86,7 +84,7 @@ function buildRedirectRules(entries) {
           redirect: { regexSubstitution }
         },
         condition: {
-          regexFilter: `^(?:https?://go/${directShortcut}/([^?#]+?)/?$|https?://.*[?&][^#]*=go%2F${encodedShortcut}%2F([^&#]+)(?:[&#].*)?$)`,
+          regexFilter: `^https?://go/${directShortcut}/([^?#]+?)/?$`,
           resourceTypes: CONFIG.RESOURCE_TYPES
         }
       });
@@ -100,7 +98,7 @@ function buildRedirectRules(entries) {
         redirect: { url: defaultUrl }
       },
       condition: {
-        regexFilter: `^(?:https?://go/${directShortcut}/?$|https?://.*[?&][^#]*=go%2F${encodedShortcut}(?:&|$))`,
+        regexFilter: `^https?://go/${directShortcut}/?$`,
         resourceTypes: CONFIG.RESOURCE_TYPES
       }
     });
@@ -154,6 +152,14 @@ async function openSidePanel(sourceTab) {
 }
 
 chrome.action.onClicked.addListener(openSidePanel);
+
+chrome.omnibox.onInputEntered.addListener((text, disposition) => {
+  const url = `http://go/${text.trim()}`;
+  const navigation = disposition === 'currentTab'
+    ? chrome.tabs.update({ url })
+    : chrome.tabs.create({ url, active: disposition === 'newForegroundTab' });
+  navigation.catch(error => console.error('Error opening Linker shortcut:', error));
+});
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === CONFIG.STORAGE_NAMESPACE && Object.keys(changes).length > 0) {

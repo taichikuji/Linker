@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Linker",
-  "version": "2.2.3",
+  "version": "2.3.0",
   "description": "Create personal go/ shortcuts for the websites you use most.",
   "homepage_url": "https://github.com/taichikuji/Linker",
   "icons": {
@@ -14,11 +14,11 @@
     "storage",
     "tabs",
     "favicon",
-    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess",
     "sidePanel"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "*://go/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'"
@@ -29,6 +29,9 @@
       "16": "assets/icon_16.png",
       "32": "assets/icon_32.png"
     }
+  },
+  "omnibox": {
+    "keyword": "go/"
   },
   "side_panel": {
     "default_path": "src/manager/manager.html"

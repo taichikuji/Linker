@@ -9,8 +9,10 @@
 </p>
 
 Linker gives frequently visited URLs a short, memorable name. Create a
-shortcut such as `go/docs`, type it in the address bar when you need it, and
-let the browser take you there.
+shortcut such as `go/docs`, then open `http://go/docs` in the address bar.
+Chrome may search for bare `go/docs`. If it does, type `go/`, press Space,
+then enter `docs`, or include `http://`. Visiting `http://go/docs` may also
+help Chrome recognize bare `go/` addresses until its history is cleared.
 
 It is a small tool for your own browser, not a new service to sign up for. The
 manager lives in the browser's side panel, and your shortcut data stays in
@@ -25,8 +27,9 @@ Chrome sync storage rather than being sent to a developer-operated backend.
 ## What it does
 
 - Create, edit, search, and delete personal `go/` shortcuts.
-- Open shortcuts from the manager or by entering `go/<shortcut>` in the address bar.
-- Use `{*}` for parameterized shortcuts, such as `go/issues/123`.
+- Open shortcuts from the manager or by visiting `http://go/<shortcut>`.
+- Use `go/` followed by Space to open shortcuts from Chrome's address bar.
+- Use `{*}` for parameterized shortcuts, such as `http://go/issues/123`.
 - Define a default destination for a parameterized shortcut when no value is supplied.
 - Open the manager in Chromium's side panel.
 - Import and export shortcut data as JSON.

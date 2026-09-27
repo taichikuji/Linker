@@ -31,6 +31,7 @@ function runBackground(options = {}) {
   const listeners = {};
   const runtimeMessages = [];
   const openedPanels = [];
+  const navigations = [];
   const errors = [];
   let ruleUpdateCalls = 0;
   let resolveUpdate;
@@ -59,6 +60,13 @@ function runBackground(options = {}) {
           listeners.actionClicked = listener;
         }
       }
+    },
+    omnibox: {
+      onInputEntered: eventSlot(listeners, 'omniboxInputEntered')
+    },
+    tabs: {
+      update: async details => navigations.push(['update', clone(details)]),
+      create: async details => navigations.push(['create', clone(details)])
     },
     storage: {
       sync: {
@@ -97,6 +105,7 @@ function runBackground(options = {}) {
     runtimeMessages,
     errors,
     openedPanels,
+    navigations,
     getRuleUpdateCalls: () => ruleUpdateCalls
   };
 }
@@ -253,7 +262,7 @@ test('background initializes through the Chromium extension API', async () => {
       redirect: { url: 'https://github.com/' }
     },
     condition: {
-      regexFilter: '^(?:https?://go/gh/?$|https?://.*[?&][^#]*=go%2Fgh(?:&|$))',
+      regexFilter: '^https?://go/gh/?$',
       resourceTypes: ['main_frame']
     }
   });
@@ -261,7 +270,7 @@ test('background initializes through the Chromium extension API', async () => {
   assert.equal(update.addRules[1].priority, 2);
   assert.equal(
     update.addRules[1].action.redirect.regexSubstitution,
-    'https://github.com/taichikuji/Linker/issues/\\1\\2'
+    'https://github.com/taichikuji/Linker/issues/\\1'
   );
   assert.equal(
     update.addRules[2].action.redirect.url,
@@ -283,10 +292,13 @@ test('manager validates import and export through the Chromium extension API', a
   const imported = JSON.parse(vm.runInContext(`JSON.stringify(parseImportData({
     docs: 'https://example.com/docs/',
     issue: { url: 'https://github.com/issues/{*}', fallbackUrl: 'https://github.com/issues' },
+    'café': 'https://example.com/',
+    '.': 'https://example.com/',
+    'a^b': 'https://example.com/',
     unsafe: 'javascript:alert(1)'
   }))`, result.context));
   assert.deepEqual(Object.keys(imported.entries), ['docs', 'issue']);
-  assert.equal(imported.skippedCount, 1);
+  assert.equal(imported.skippedCount, 4);
 
   const exported = JSON.parse(vm.runInContext(
     'JSON.stringify(createExportData(state.entries))',
@@ -381,6 +393,21 @@ test('toolbar click opens the side panel and focuses search', async () => {
   }]);
 });
 
+test('omnibox keyword opens local shortcuts in the requested tab', async () => {
+  const result = runBackground();
+  await result.updated;
+
+  result.listeners.omniboxInputEntered(' docs ', 'currentTab');
+  result.listeners.omniboxInputEntered('issues/123', 'newForegroundTab');
+  result.listeners.omniboxInputEntered('gh', 'newBackgroundTab');
+
+  assert.deepEqual(result.navigations, [
+    ['update', { url: 'http://go/docs' }],
+    ['create', { url: 'http://go/issues/123', active: true }],
+    ['create', { url: 'http://go/gh', active: false }]
+  ]);
+});
+
 test('opening the editor ignores internal browser URLs', async () => {
   const result = runManager({}, { activeTab: { url: 'chrome://extensions' } });
   await vm.runInContext('initialize()', result.context);
@@ -431,6 +458,33 @@ test('manager confirms normalized import replacements', async () => {
   await importing;
 
   assert.deepEqual(result.getEntries(), { gh: { url: 'https://example.com/' } });
+});
+
+test('built-in object names can be saved and imported as shortcuts', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  result.elements.get('go-link').value = 'constructor';
+  result.elements.get('full-link').value = 'https://example.com/';
+  await result.elements.get('editor-form').dispatch('submit');
+  assert.deepEqual(result.getEntries(), { constructor: { url: 'https://example.com/' } });
+
+  result.elements.get('go-link').value = '__proto__';
+  await result.elements.get('editor-form').dispatch('submit');
+  assert.equal(vm.runInContext("Object.hasOwn(state.entries, '__proto__')", result.context), true);
+
+  const importingManager = runManager();
+  await vm.runInContext('initialize()', importingManager.context);
+  importingManager.elements.get('import-file').files = [{
+    size: 100,
+    text: async () => JSON.stringify({ constructor: 'https://example.com/other' })
+  }];
+  const importing = importingManager.elements.get('import-file').dispatch('change');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(Boolean(importingManager.elements.get('confirm-modal').open), false);
+  await importing;
+  assert.deepEqual(importingManager.getEntries(), {
+    constructor: { url: 'https://example.com/other' }
+  });
 });
 
 test('cancel closes an edit without touching its destination, then reopens for a new shortcut', async () => {
@@ -547,5 +601,7 @@ test('manifest defines a Chromium MV3 service worker', () => {
   );
   assert.equal(manifest.permissions.includes('sidePanel'), true);
   assert.equal(manifest.permissions.includes('favicon'), true);
+  assert.equal(manifest.omnibox.keyword, 'go/');
+  assert.deepEqual(manifest.host_permissions, ['*://go/*']);
   assert.equal(manifest.permissions.includes('unlimitedStorage'), false);
 });
