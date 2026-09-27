@@ -253,7 +253,7 @@ test('background initializes through the Chromium extension API', async () => {
       redirect: { url: 'https://github.com/' }
     },
     condition: {
-      regexFilter: '^(?:https?://go/gh/?$|https?://.*[?&][^#]*=go%2Fgh(?:&|$))',
+      regexFilter: '^https?://go/gh/?$',
       resourceTypes: ['main_frame']
     }
   });
@@ -261,7 +261,7 @@ test('background initializes through the Chromium extension API', async () => {
   assert.equal(update.addRules[1].priority, 2);
   assert.equal(
     update.addRules[1].action.redirect.regexSubstitution,
-    'https://github.com/taichikuji/Linker/issues/\\1\\2'
+    'https://github.com/taichikuji/Linker/issues/\\1'
   );
   assert.equal(
     update.addRules[2].action.redirect.url,
@@ -547,5 +547,6 @@ test('manifest defines a Chromium MV3 service worker', () => {
   );
   assert.equal(manifest.permissions.includes('sidePanel'), true);
   assert.equal(manifest.permissions.includes('favicon'), true);
+  assert.deepEqual(manifest.host_permissions, ['*://go/*']);
   assert.equal(manifest.permissions.includes('unlimitedStorage'), false);
 });

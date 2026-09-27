@@ -14,11 +14,11 @@
     "storage",
     "tabs",
     "favicon",
-    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess",
     "sidePanel"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "*://go/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'"
