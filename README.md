@@ -5,18 +5,15 @@
 <h1 align="center">Linker</h1>
 
 <p align="center">
-  Create personal <code>go/</code> shortcuts for the websites you use most.
+  Create personal <code>go/</code> shortcuts for the websites you use most. 🦝
 </p>
 
-Linker gives frequently visited URLs a short, memorable name. Create a
-shortcut such as `go/docs`, then open `http://go/docs` in the address bar.
-Chrome may search for bare `go/docs`. If it does, type `go/`, press Space,
-then enter `docs`, or include `http://`. Visiting `http://go/docs` may also
-help Chrome recognize bare `go/` addresses until its history is cleared.
+Know what go/links are? Great!
 
-It is a small tool for your own browser, not a new service to sign up for. The
-manager lives in the browser's side panel, and your shortcut data stays in
-Chrome sync storage rather than being sent to a developer-operated backend.
+Don't know what go/links are? If curious, read about it [here!](https://www.trot.to/history-of-go-links)
+
+
+Linker is an extension which allows you to have go/links functionality on your browser, completely offline and locally!
 
 ## Preview
 
@@ -24,31 +21,29 @@ Chrome sync storage rather than being sent to a developer-operated backend.
   <img src="assets/linker-preview.webp" alt="Linker preview" width="720">
 </p>
 
-## What it does
+## What Linker does
 
 - Create, edit, search, and delete personal `go/` shortcuts.
-- Open shortcuts from the manager or by visiting `http://go/<shortcut>`.
-- Use `go/` followed by Space to open shortcuts from Chrome's address bar.
-- Use `{*}` for parameterized shortcuts, such as `http://go/issues/123`.
-- Define a default destination for a parameterized shortcut when no value is supplied.
-- Open the manager in Chromium's side panel.
-- Import and export shortcut data as JSON.
-- Keep shortcuts available through Chrome sync storage.
-- Respect light and dark system themes.
-- Migrate compatible shortcut data from [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj).
+- Open shortcuts from the manager or by visiting `go/<shortcut>`.
+- Additionally, you can type `go/` then press Space to open shortcuts from Chrome's address bar.
+- Dynamic URLs are supported! Use `{*}` for parameterized shortcuts, such as `go/issues/123`.
+- When Dynamic URLs are in use, you can set a default destination when no value is in use.
+- Linker uses the sideBar API, meaning you can have the Linker manager open whenever you need it, always there.
+- Plan on moving the database anywhere, or moving from [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj)? You can import and export!
+- Chrome Sync compatible.
+- Has both Dark and Light themes, automatically syncs with your browser settings!
 
 For examples and the full explanation, see the [How to use Linker guide](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
 
-## What it does not do
+## What Linker does not do
 
-- It is not a public URL shortener or a link-hosting service.
-- It does not proxy, inspect, or rewrite the destination server's content.
-- It is not a general bookmark manager with folders, tags, or a reading queue.
-- It does not need a separate Linker account or developer-operated backend.
-- It does not replace the browser's history, bookmarks, or ordinary search.
+- This does not allow you to host said go/links online, or "share" them with friends. ( unless you want to share your configuration! )
+- There's no proxy, or outbound connection when using your go/links.
+- It is not a replacement for your bookmarks. It does not intend to be, either.
+- Does not require you to have an account to use it.
+- It does not replace the browser's history, or ordinary searches either.
 
-Linker keeps the useful part simple: give a URL a name, then use that name
-when you already know where you want to go.
+Linker has a simple objective: Be the best at one thing. That one thing is having go/links functionality for your browser to speed up your way of working.
 
 ## Installation
 
@@ -65,11 +60,13 @@ For the canonical usage instructions, see the [How to use Linker guide](https://
 
 ## A small note about Firefox
 
-Linker was created for Chromium-based browsers and has not been fully tested
-on Firefox. Firefox support has also not been requested, so maintaining a build
-that cannot be confidently validated is outside Linker's current scope.
+Although Linker supports MV3 which is also supported on Firefox, there's no official support for this as I do not personally use it.
+
+You may want to port the extension to Firefox. I won't stop you. If you want to help me do this, I'd also appreciate it!
 
 ## Development
+
+To develop new features, or fix bugs, follow this;
 
 The project has no runtime dependencies. Run the test suite with Bun:
 
@@ -77,22 +74,19 @@ The project has no runtime dependencies. Run the test suite with Bun:
 bun test
 ```
 
-Before releasing, test the extension in Chrome and at least one other Chromium
-browser such as Brave or Edge. Check the side panel at narrow and wide widths,
-URL prefill, direct and parameterized shortcuts, import/export, redirect rules,
-and behavior after restarting the browser. The release workflow is documented
-in [GUIDE.md](.github/workflows/GUIDE.md).
+Before releasing, test the extension in Chrome and at least one other Chromium browser such as Brave or Edge. Check the side panel at narrow and wide widths, URL prefill, direct and parameterized shortcuts, import/export, redirect rules, and behavior after restarting the browser. The release workflow is documented in [GUIDE.md](.github/workflows/GUIDE.md).
 
 ## Contributing
 
-Linker is intentionally small, but sensible improvements are welcome. If an
-idea solves a real problem without making personal shortcuts harder to
-understand, open an issue or pull request and explain the use case.
+I am more than happy to see and welcome contributors! Just please respect my way of coding.
+
+I like things minimal and code should be readable and efficient.
+If you see something you'd genuinely do better than me, I'd be more than happy to accept a Pull Request from you!
 
 ## Support
 
-Linker is not currently published in the Chrome Web Store. If you would like
-to help with that someday, you can [buy the author a coffee via PayPal](https://paypal.me/ivanperezf).
+Linker is not currently published in the Chrome Web Store. (On the works now!) If you would like
+to support me along the way, you can [buy me a coffee via PayPal](https://paypal.me/ivanperezf).
 
 ## Icon palette
 
@@ -100,5 +94,8 @@ to help with that someday, you can [buy the author a coffee via PayPal](https://
 - Orange: [#db8758](https://www.color-hex.com/color/db8758)
 - Brown: [#b13d14](https://www.color-hex.com/color/b13d14)
 
-Found a bug or have an idea? Please report it with enough context to reproduce
-the behavior. Thanks for taking the time to use Linker.
+Found a bug or have an idea? Please report it with enough context to reproduce the behavior.
+
+Thanks for taking the time to use Linker.
+
+Much love 🦝❤️
