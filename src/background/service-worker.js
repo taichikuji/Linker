@@ -153,12 +153,26 @@ async function openSidePanel(sourceTab) {
 
 chrome.action.onClicked.addListener(openSidePanel);
 
-chrome.omnibox.onInputEntered.addListener((text, disposition) => {
-  const url = `http://go/${text.trim()}`;
-  const navigation = disposition === 'currentTab'
-    ? chrome.tabs.update({ url })
-    : chrome.tabs.create({ url, active: disposition === 'newForegroundTab' });
-  navigation.catch(error => console.error('Error opening Linker shortcut:', error));
+chrome.omnibox.onInputEntered.addListener(async (text, disposition) => {
+  const input = text.trim();
+  const name = input.split('/')[0];
+  const shortcut = name.toLowerCase();
+  const url = `http://go/${input}`;
+  // A rewritten path could miss the redirect rule and request the go host.
+  if (!shortcut || input.includes('?') || input.includes('#')
+    || new URL(url).pathname !== `/${input}`) return;
+
+  try {
+    const entry = (await chrome.storage.sync.get(shortcut))[shortcut];
+    const suffix = input.slice(name.length + 1);
+    if (!isValidStoredEntry(entry) || (suffix && !hasVariable(entry.url))) return;
+
+    await (disposition === 'currentTab'
+      ? chrome.tabs.update({ url })
+      : chrome.tabs.create({ url, active: disposition === 'newForegroundTab' }));
+  } catch (error) {
+    console.error('Error opening Linker shortcut:', error);
+  }
 });
 
 chrome.storage.onChanged.addListener((changes, namespace) => {

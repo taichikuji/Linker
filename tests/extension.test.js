@@ -397,14 +397,18 @@ test('omnibox keyword opens local shortcuts in the requested tab', async () => {
   const result = runBackground();
   await result.updated;
 
-  result.listeners.omniboxInputEntered(' docs ', 'currentTab');
-  result.listeners.omniboxInputEntered('issues/123', 'newForegroundTab');
-  result.listeners.omniboxInputEntered('gh', 'newBackgroundTab');
+  await result.listeners.omniboxInputEntered(' GH ', 'currentTab');
+  await result.listeners.omniboxInputEntered('issue/123', 'newForegroundTab');
+  await result.listeners.omniboxInputEntered('issue', 'newBackgroundTab');
+  await result.listeners.omniboxInputEntered('missing', 'currentTab');
+  await result.listeners.omniboxInputEntered('gh/extra', 'currentTab');
+  await result.listeners.omniboxInputEntered('issue/../missing', 'currentTab');
+  await result.listeners.omniboxInputEntered('gh?search', 'currentTab');
 
   assert.deepEqual(result.navigations, [
-    ['update', { url: 'http://go/docs' }],
-    ['create', { url: 'http://go/issues/123', active: true }],
-    ['create', { url: 'http://go/gh', active: false }]
+    ['update', { url: 'http://go/GH' }],
+    ['create', { url: 'http://go/issue/123', active: true }],
+    ['create', { url: 'http://go/issue', active: false }]
   ]);
 });
 
