@@ -12,10 +12,12 @@
   },
   "permissions": [
     "storage",
-    "tabs",
     "favicon",
     "declarativeNetRequestWithHostAccess",
     "sidePanel"
+  ],
+  "optional_permissions": [
+    "tabs"
   ],
   "host_permissions": [
     "*://go/*"

@@ -100,7 +100,16 @@ function setupEventListeners() {
     return saveShortcut();
   });
   elements.urlInput.addEventListener('input', updateVariableFields);
-  elements.addSection.addEventListener('toggle', () => elements.addSection.open && prefillActiveTab());
+  elements.addSection.querySelector('summary').addEventListener('click', async () => {
+    if (elements.addSection.open || state.editingShortcut) return;
+    elements.urlInput.value = '';
+    updateVariableFields();
+    try {
+      if (await chrome.permissions.request({ permissions: ['tabs'] })) await prefillActiveTab();
+    } catch (error) {
+      console.error('Error requesting tab access:', error);
+    }
+  });
   elements.cancelEditButton.addEventListener('click', () => {
     resetForm();
     elements.addSection.open = false;

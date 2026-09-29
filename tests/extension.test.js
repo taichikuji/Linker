@@ -115,6 +115,7 @@ function runManager(initialEntries = {}, options = {}) {
   const listeners = {};
   const elements = new Map();
   const tabQueries = [];
+  const permissionRequests = [];
   let entries = clone(initialEntries);
 
   const document = {
@@ -199,6 +200,12 @@ function runManager(initialEntries = {}, options = {}) {
     declarativeNetRequest: {
       MAX_NUMBER_OF_REGEX_RULES: 1000
     },
+    permissions: {
+      request: async details => {
+        permissionRequests.push(clone(details));
+        return options.tabsGranted ?? true;
+      }
+    },
     runtime: {
       getURL: path => `chrome-extension://linker/${path}`,
       onMessage: eventSlot(listeners, 'runtimeMessage')
@@ -242,8 +249,16 @@ function runManager(initialEntries = {}, options = {}) {
     elements,
     listeners,
     tabQueries,
+    permissionRequests,
     getEntries: () => clone(entries)
   };
+}
+
+async function toggleEditor(result) {
+  const section = result.elements.get('add-section');
+  const clicking = section.querySelector('summary').dispatch('click');
+  section.open = !section.open;
+  await clicking;
 }
 
 test('background initializes through the Chromium extension API', async () => {
@@ -360,12 +375,12 @@ test('opening the editor reads the current URL and saves it', async () => {
   const editorSection = result.elements.get('add-section');
 
   await vm.runInContext('initialize()', result.context);
-  editorSection.open = true;
-  await editorSection.dispatch('toggle');
+  await toggleEditor(result);
 
   const urlInput = result.elements.get('full-link');
   const shortcutInput = result.elements.get('go-link');
   assert.deepEqual(result.tabQueries, [{ active: true, currentWindow: true }]);
+  assert.deepEqual(result.permissionRequests, [{ permissions: ['tabs'] }]);
   assert.equal(urlInput.value, sourceUrl);
   assert.equal(editorSection.open, true);
 
@@ -376,6 +391,34 @@ test('opening the editor reads the current URL and saves it', async () => {
     example: { url: sourceUrl }
   });
   assert.equal(editorSection.open, true);
+});
+
+test('declining tab access leaves the editor usable and closing does not ask again', async () => {
+  const result = runManager({}, {
+    activeTab: { url: 'https://example.com/current' },
+    tabsGranted: false
+  });
+  await vm.runInContext('initialize()', result.context);
+
+  const urlInput = result.elements.get('full-link');
+  urlInput.value = 'https://example.com/old';
+  await toggleEditor(result);
+
+  assert.equal(urlInput.value, '');
+  assert.deepEqual(result.tabQueries, []);
+  assert.deepEqual(result.permissionRequests, [{ permissions: ['tabs'] }]);
+
+  urlInput.value = 'https://example.com/manual';
+  result.elements.get('go-link').value = 'manual';
+  await result.elements.get('editor-form').dispatch('submit');
+  assert.deepEqual(result.getEntries(), {
+    manual: { url: 'https://example.com/manual' }
+  });
+
+  await toggleEditor(result);
+  assert.equal(result.elements.get('add-section').open, false);
+  assert.equal(result.permissionRequests.length, 1);
+  assert.equal(urlInput.value, 'https://example.com/manual');
 });
 
 test('toolbar click opens the side panel and focuses search', async () => {
@@ -442,8 +485,7 @@ test('opening the editor ignores internal browser URLs', async () => {
   await vm.runInContext('initialize()', result.context);
 
   const editorSection = result.elements.get('add-section');
-  editorSection.open = true;
-  await editorSection.dispatch('toggle');
+  await toggleEditor(result);
 
   assert.equal(result.elements.get('full-link').value, '');
 });
@@ -543,8 +585,7 @@ test('cancel closes an edit without touching its destination, then reopens for a
 
   for (const url of ['https://example.com/current', 'https://example.com/latest']) {
     activeTab.url = url;
-    editorSection.open = true;
-    await editorSection.dispatch('toggle');
+    await toggleEditor(result);
     assert.equal(urlInput.value, url);
     assert.equal(result.elements.get('cancel-edit').hidden, false);
     await result.elements.get('cancel-edit').dispatch('click');
@@ -552,8 +593,7 @@ test('cancel closes an edit without touching its destination, then reopens for a
     assert.equal(urlInput.value, url);
   }
 
-  editorSection.open = true;
-  await editorSection.dispatch('toggle');
+  await toggleEditor(result);
   result.elements.get('go-link').value = 'new';
   await result.elements.get('editor-form').dispatch('submit');
   assert.deepEqual(result.getEntries(), {
@@ -576,6 +616,7 @@ test('toolbar click focuses search without opening the editor or clearing drafts
   assert.equal(editorSection.open, false);
   assert.equal(result.elements.get('full-link').value, 'https://example.com/draft');
   assert.equal(result.context.document.activeElement, result.elements.get('search'));
+  assert.deepEqual(result.permissionRequests, []);
 });
 
 test('manager displays background routing failures', async () => {
@@ -597,8 +638,7 @@ test('opening the editor refreshes the destination from the active tab', async (
   result.elements.get('full-link').value = 'https://example.com/draft';
 
   const editorSection = result.elements.get('add-section');
-  editorSection.open = true;
-  await editorSection.dispatch('toggle');
+  await toggleEditor(result);
 
   assert.equal(result.elements.get('full-link').value, 'https://example.com/current');
   assert.deepEqual(result.tabQueries, [{ active: true, currentWindow: true }]);
@@ -630,6 +670,8 @@ test('manifest defines a Chromium MV3 service worker', () => {
   );
   assert.equal(manifest.permissions.includes('sidePanel'), true);
   assert.equal(manifest.permissions.includes('favicon'), true);
+  assert.equal(manifest.permissions.includes('tabs'), false);
+  assert.deepEqual(manifest.optional_permissions, ['tabs']);
   assert.equal(manifest.omnibox.keyword, 'go/');
   assert.deepEqual(manifest.host_permissions, ['*://go/*']);
   assert.equal(manifest.permissions.includes('unlimitedStorage'), false);

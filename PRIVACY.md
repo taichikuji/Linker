@@ -8,7 +8,7 @@ Linker is a browser extension for creating and opening personal shortcuts to web
 
 Linker stores shortcut names and destination URLs that you create or import using Chrome's sync storage. Chrome Sync may synchronize this information between Chrome browsers signed in to your Google account, according to your Chrome Sync settings and Google's privacy terms.
 
-When you open Linker's Add new shortcut editor, Linker reads the active tab's URL to offer it as a shortcut destination. It does not monitor your browsing in the background. Linker uses the shortcut information you provide to create browser redirect rules and open the destinations you chose. It does not read page contents.
+If you grant the optional tabs permission, opening Linker's Add new shortcut editor reads the active tab's URL to offer it as a shortcut destination. If you decline, you can enter the URL yourself. Linker does not monitor your browsing in the background. It uses the shortcut information you provide to create browser redirect rules and open the destinations you chose. It does not read page contents.
 
 Linker may request website favicons through Chrome's built-in favicon support to display icons for saved destinations.
 
