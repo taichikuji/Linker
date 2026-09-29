@@ -35,6 +35,8 @@ Linker is an extension which allows you to have go/links functionality on your b
 
 For examples and the full explanation, see the [How to use Linker guide](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
 
+Read the [Linker Privacy Policy](PRIVACY.md) for details about shortcut data and Chrome Sync.
+
 ## What Linker does not do
 
 - This does not allow you to host said go/links online, or "share" them with friends. ( unless you want to share your configuration! )
