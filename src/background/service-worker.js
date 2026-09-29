@@ -49,6 +49,11 @@ function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function escapeOmniboxText(value) {
+  const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' };
+  return value.replace(/[&<>"']/g, character => entities[character]);
+}
+
 /**
  * Reads all compatible Linkify/Linker entries from sync storage.
  */
@@ -152,6 +157,23 @@ async function openSidePanel(sourceTab) {
 }
 
 chrome.action.onClicked.addListener(openSidePanel);
+
+chrome.omnibox.onInputChanged.addListener(async (text, suggest) => {
+  try {
+    const query = text.trim().toLowerCase();
+    const entries = await getStoredEntries();
+    suggest(entries
+      .filter(([name]) => name.toLowerCase().startsWith(query))
+      .slice(0, 5)
+      .map(([name, entry]) => ({
+        content: name,
+        description: `go/${escapeOmniboxText(name)} — ${escapeOmniboxText(entry.url)}`
+      })));
+  } catch (error) {
+    console.error('Error loading Linker suggestions:', error);
+    suggest([]);
+  }
+});
 
 chrome.omnibox.onInputEntered.addListener(async (text, disposition) => {
   const input = text.trim();

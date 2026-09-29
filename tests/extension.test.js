@@ -62,6 +62,7 @@ function runBackground(options = {}) {
       }
     },
     omnibox: {
+      onInputChanged: eventSlot(listeners, 'omniboxInputChanged'),
       onInputEntered: eventSlot(listeners, 'omniboxInputEntered')
     },
     tabs: {
@@ -70,7 +71,7 @@ function runBackground(options = {}) {
     },
     storage: {
       sync: {
-        get: async () => ({
+        get: async () => options.entries ?? ({
           gh: { url: 'https://github.com/' },
           issue: {
             url: 'https://github.com/taichikuji/Linker/issues/{*}',
@@ -410,6 +411,30 @@ test('omnibox keyword opens local shortcuts in the requested tab', async () => {
     ['create', { url: 'http://go/issue/123', active: true }],
     ['create', { url: 'http://go/issue', active: false }]
   ]);
+});
+
+test('omnibox suggests saved shortcuts matching the typed prefix', async () => {
+  const result = runBackground({ entries: {
+    docs: { url: 'https://example.com/?a=1&b=2' },
+    done: { url: 'https://example.com/done' },
+    ignored: { url: 'javascript:alert(1)' }
+  } });
+  await result.updated;
+
+  let suggestions;
+  await result.listeners.omniboxInputChanged('DO', results => {
+    suggestions = clone(results);
+  });
+
+  assert.deepEqual(suggestions, [
+    { content: 'docs', description: 'go/docs — https://example.com/?a=1&amp;b=2' },
+    { content: 'done', description: 'go/done — https://example.com/done' }
+  ]);
+
+  await result.listeners.omniboxInputChanged('missing', results => {
+    suggestions = clone(results);
+  });
+  assert.deepEqual(suggestions, []);
 });
 
 test('opening the editor ignores internal browser URLs', async () => {

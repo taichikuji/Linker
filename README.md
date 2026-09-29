@@ -25,7 +25,7 @@ Linker is an extension which allows you to have go/links functionality on your b
 
 - Create, edit, search, and delete personal `go/` shortcuts.
 - Open shortcuts from the manager or by visiting `go/<shortcut>`.
-- Additionally, you can type `go/` then press Space to open shortcuts from Chrome's address bar.
+- Additionally, type `go/` then press Space to find saved shortcuts in Chrome's address bar.
 - Dynamic URLs are supported! Use `{*}` for parameterized shortcuts, such as `go/issues/123`.
 - When Dynamic URLs are in use, you can set a default destination when no value is in use.
 - Linker uses the sideBar API, meaning you can have the Linker manager open whenever you need it, always there.
