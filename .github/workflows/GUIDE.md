@@ -91,7 +91,20 @@ The tag push starts the GitHub Actions workflow. It will:
 - run the browser unit tests;
 - read the version from `manifest.json`;
 - package the Chromium extension;
-- upload the package as a workflow artifact.
+- upload the package as a workflow artifact;
+- attach the ZIP to the GitHub Release;
+- submit a newer version to the Chrome Web Store for review. Reruns of an
+  already submitted version are skipped.
+
+Linker's store item ID is `nacggecaljkbjoghmiidmkpgpkfpmhgm`. Before the next
+tag, [set up Workload Identity Federation](https://github.com/hamzahamidi/publish-to-chrome-web-store#setting-up-workload-identity-federation)
+for this repository. If Linker and Stasher belong to the same publisher, reuse
+Stasher's service account; the Dashboard allows one service account per
+publisher. Create a `chrome-web-store` GitHub environment restricted to `v*`
+tags, without required reviewers. Set Actions variables `CWS_WIF_PROVIDER`
+(provider resource name), `CWS_SERVICE_ACCOUNT` (email), and
+`CWS_PUBLISHER_ID` (Dashboard publisher ID). Manual workflow runs build a ZIP
+artifact but do not publish.
 
 Monitor the run in the [Actions tab](https://github.com/taichikuji/Linker/actions).
 
