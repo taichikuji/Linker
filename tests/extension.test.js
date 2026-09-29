@@ -294,6 +294,18 @@ test('background initializes through the Chromium extension API', async () => {
   );
 });
 
+test('redirect rules stay on the go host', async () => {
+  const { updated } = runBackground();
+  const { addRules } = await updated;
+  const matches = url => addRules.some(rule => new RegExp(rule.condition.regexFilter).test(url));
+
+  assert.equal(matches('http://go/gh'), true);
+  assert.equal(matches('https://go/gh/'), true);
+  assert.equal(matches('https://go/issue/123'), true);
+  assert.equal(matches('https://example.com/path://go/gh'), false);
+  assert.equal(matches('https://example.com/?tracking=go%2Fgh&next=1'), false);
+});
+
 test('manager validates import and export through the Chromium extension API', async () => {
   const result = runManager({
     gh: { url: 'https://github.com/' },
