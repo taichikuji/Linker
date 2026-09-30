@@ -37,6 +37,10 @@ For examples and the full explanation, see the [How to use Linker guide](https:/
 
 Read the [Linker Privacy Policy](PRIVACY.md) for details about shortcut data and Chrome Sync.
 
+## How to use
+
+For the usage instructions, see the [How to use Linker guide](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
+
 ## What Linker does not do
 
 - This does not allow you to host said go/links online, or "share" them with friends. ( unless you want to share your configuration! )
@@ -49,16 +53,7 @@ Linker has a simple objective: Be the best at one thing. That one thing is havin
 
 ## Installation
 
-Linker supports current desktop Chromium browsers, including Google Chrome,
-Brave, Microsoft Edge, Opera, Vivaldi, and compatible Chromium forks.
-
-1. Open your browser's extensions page (`chrome://extensions`,
-   `brave://extensions`, or `edge://extensions`).
-2. Enable **Developer mode**.
-3. Choose **Load unpacked** and select this directory.
-4. Pin Linker to the toolbar so its side panel is easy to open.
-
-For the canonical usage instructions, see the [How to use Linker guide](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
+Install Linker from the [Chrome Web Store](https://chromewebstore.google.com/detail/linker/nacggecaljkbjoghmiidmkpgpkfpmhgm).
 
 ## A small note about Firefox
 
@@ -87,8 +82,7 @@ If you see something you'd genuinely do better than me, I'd be more than happy t
 
 ## Support
 
-Linker is not currently published in the Chrome Web Store. (On the works now!) If you would like
-to support me along the way, you can [buy me a coffee via PayPal](https://paypal.me/ivanperezf).
+If you would like to support me, you can [buy me a coffee via PayPal](https://paypal.me/ivanperezf).
 
 ## Icon palette
 
