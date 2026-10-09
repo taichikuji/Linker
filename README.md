@@ -12,7 +12,6 @@ Know what go/links are? Great!
 
 Don't know what go/links are? If curious, read about it [here!](https://www.trot.to/history-of-go-links)
 
-
 Linker is an extension which allows you to have go/links functionality on your browser, completely offline and locally!
 
 ## Preview
@@ -21,33 +20,57 @@ Linker is an extension which allows you to have go/links functionality on your b
   <img src="assets/linker-preview.webp" alt="Linker preview" width="720">
 </p>
 
-## What Linker does
+## How it works
 
-- Create, edit, search, and delete personal `go/` shortcuts.
-- Open shortcuts from the manager or by visiting `go/<shortcut>`.
-- Additionally, type `go/` then press Space to find saved shortcuts in Chrome's address bar.
-- Dynamic URLs are supported! Use `{*}` for parameterized shortcuts, such as `go/issues/123`.
-- When Dynamic URLs are in use, you can set a default destination when no value is in use.
-- Linker uses the sideBar API, meaning you can have the Linker manager open whenever you need it, always there.
-- Plan on moving the database anywhere, or moving from [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj)? You can import and export!
-- Chrome Sync compatible.
-- Has both Dark and Light themes, automatically syncs with your browser settings!
+Linker's core workflow is simple: create a shortcut, then use `go/` to open it quickly.
+
+### Create a shortcut
+
+```mermaid
+flowchart LR
+  A["Linker toolbar icon is clicked"] --> B["Linker manager opens in the side panel"]
+  B --> C["Add new shortcut is selected"]
+  C --> D["Shortcut name and destination are entered"]
+  D --> E["Save shortcut is clicked"]
+  E --> F["Shortcut appears in the manager"]
+```
+
+### Open a shortcut
+
+```mermaid
+flowchart LR
+  A["go/<shortcut> is entered"] --> B["Linker finds the matching shortcut"]
+  B --> C{"Parameterized shortcut?"}
+  C -->|No| D["Browser opens the saved destination"]
+  C -->|Yes| E{"Value follows the shortcut?"}
+  E -->|Yes| F["Value replaces {*} in the destination"]
+  F --> G["Browser opens the resulting destination"]
+  E -->|No| H["Browser opens the default destination"]
+```
+
+## Details
+
+* Create, edit, search, and delete personal `go/` shortcuts.
+* Open shortcuts from the manager or by visiting `go/<shortcut>`.
+* Type `go/` then press Space to find saved shortcuts in Chrome's address bar.
+* Use `{*}` for parameterized shortcuts, such as `go/issues/123`.
+* Set a default destination when a parameterized shortcut is opened without a value.
+* Linker uses the sideBar API, meaning you can have the Linker manager open whenever you need it, always there.
+* Plan on moving the database anywhere, or moving from [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj)? You can import and export!
+* Chrome Sync compatible.
+* Has both Dark and Light themes, automatically syncing with your browser settings!
 
 For examples and the full explanation, see the [How to use Linker guide](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
 
 Read the [Linker Privacy Policy](PRIVACY.md) for details about shortcut data and Chrome Sync.
 
-## How to use
+## Scope
 
-For the usage instructions, see the [How to use Linker guide](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
-
-## What Linker does not do
-
-- This does not allow you to host said go/links online, or "share" them with friends. ( unless you want to share your configuration! )
-- There's no proxy, or outbound connection when using your go/links.
-- It is not a replacement for your bookmarks. It does not intend to be, either.
-- Does not require you to have an account to use it.
-- It does not replace the browser's history, or ordinary searches either.
+* This does not allow you to host said go/links online, or "share" them with friends. ( unless you want to share your configuration! )
+* There's no proxy, or outbound connection when using your go/links.
+* It is not a replacement for your bookmarks. It does not intend to be, either.
+* Does not require you to have an account to use it.
+* It does not replace the browser's history, or ordinary searches either.
 
 Linker has a simple objective: Be the best at one thing. That one thing is having go/links functionality for your browser to speed up your way of working.
 
