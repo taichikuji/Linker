@@ -12,7 +12,7 @@ Know what go/links are? Great!
 
 Don't know what go/links are? If curious, read about it [here!](https://www.trot.to/history-of-go-links)
 
-Linker is an extension which allows you to have go/links functionality on your browser, completely offline and locally!
+Linker brings personal `go/` shortcuts to your browser, with routing handled locally.
 
 ## Preview
 
@@ -24,55 +24,56 @@ Linker is an extension which allows you to have go/links functionality on your b
 
 Linker's core workflow is simple: create a shortcut, then use `go/` to open it quickly.
 
-### Create a shortcut
+### Save a shortcut
+
+Click the Linker toolbar icon to open the side-panel manager, then select **Add new shortcut**. Use a unique, URL-safe name and an HTTP or HTTPS destination. A destination containing `{*}` requires a default URL for use without a value. Linker checks these inputs and the browser's shortcut capacity before saving; to change an existing shortcut, edit it instead.
 
 ```mermaid
-flowchart LR
-  A["Linker toolbar icon is clicked"] --> B["Linker manager opens in the side panel"]
-  B --> C["Add new shortcut is selected"]
-  C --> D["Shortcut name and destination are entered"]
-  D --> E["Save shortcut is clicked"]
-  E --> F["Shortcut appears in the manager"]
+flowchart TD
+  accTitle: Save a Linker shortcut
+  accDescr: Enter a name and destination, add a default URL if the destination contains a variable, and save if validation and capacity checks pass. Otherwise, review the error and adjust the shortcut. Saving reports success or an error.
+  A["Open the side-panel editor"] --> B["Enter a name and destination"]
+  B --> C{"Does the URL contain {*}?"}
+  C -->|Yes| D["Enter a default URL"]
+  C -->|No| E{"Can this shortcut be saved?"}
+  D --> E
+  E -->|No| F["Review the error and adjust"]
+  F --> B
+  E -->|Yes| G["Save the shortcut"]
+  G --> H{"Did saving succeed?"}
+  H -->|Yes| I["Shortcut appears in the manager"]
+  H -->|No| J["Show a save error"]
 ```
 
 ### Open a shortcut
 
+Visit `go/<shortcut>` to open its destination. For example, save `issues` with destination `https://github.com/taichikuji/Linker/issues/{*}` and default URL `https://github.com/taichikuji/Linker/issues`: `go/issues/123` opens issue 123, while `go/issues` opens the issue list.
+
 ```mermaid
-flowchart LR
-  A["go/<shortcut> is entered"] --> B["Linker finds the matching shortcut"]
-  B --> C{"Parameterized shortcut?"}
-  C -->|No| D["Browser opens the saved destination"]
-  C -->|Yes| E{"Value follows the shortcut?"}
-  E -->|Yes| F["Value replaces {*} in the destination"]
-  F --> G["Browser opens the resulting destination"]
-  E -->|No| H["Browser opens the default destination"]
+flowchart TD
+  accTitle: Open a Linker shortcut
+  accDescr: Only URLs matching a saved shortcut rule are redirected. A regular shortcut opens its saved URL. A destination containing a variable uses the supplied value, or opens its default URL when no value is supplied.
+  A["Visit a go/ URL"] --> B{"Does the URL match<br/>a saved shortcut rule?"}
+  B -->|No| C["Leave navigation alone"]
+  B -->|Yes| D{"Does the destination contain {*}?"}
+  D -->|No| E["Open the saved URL"]
+  D -->|Yes| F{"Was a value supplied?"}
+  F -->|Yes| G["Replace {*} with the value"]
+  G --> H["Open the resulting URL"]
+  F -->|No| I["Open the default URL"]
 ```
 
-## Details
+Ordinary URLs, unknown shortcuts, and unsupported `go/` paths receive no redirect from Linker. For example, a shortcut without `{*}` does not accept an extra path such as `go/docs/123`.
 
-* Create, edit, search, and delete personal `go/` shortcuts.
-* Open shortcuts from the manager or by visiting `go/<shortcut>`.
-* Type `go/` then press Space to find saved shortcuts in Chrome's address bar.
-* Use `{*}` for parameterized shortcuts, such as `go/issues/123`.
-* Set a default destination when a parameterized shortcut is opened without a value.
-* Linker uses the sideBar API, meaning you can have the Linker manager open whenever you need it, always there.
-* Plan on moving the database anywhere, or moving from [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj)? You can import and export!
-* Chrome Sync compatible.
-* Has both Dark and Light themes, automatically syncing with your browser settings!
+The manager lets you search, edit, delete, and open shortcuts in a new tab. Opening a shortcut containing `{*}` from the manager uses its default URL. In Chrome's address bar, type `go/` and press Space to see saved shortcut names matching the prefix you type; unknown or unsupported inputs do not open a tab.
+
+You can export shortcuts as JSON and import them into Linker, including compatible [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj) exports. Shortcuts use Chrome's sync storage and can sync between browsers according to your Chrome Sync settings. The manager follows your browser's light or dark theme.
+
+Linker routes shortcuts in your browser without a developer-operated server or a Linker account. Destination websites, Chrome's favicon support, and Chrome Sync may use the network.
 
 For examples and the full explanation, see the [How to use Linker guide](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
 
 Read the [Linker Privacy Policy](PRIVACY.md) for details about shortcut data and Chrome Sync.
-
-## Scope
-
-* This does not allow you to host said go/links online, or "share" them with friends. ( unless you want to share your configuration! )
-* There's no proxy, or outbound connection when using your go/links.
-* It is not a replacement for your bookmarks. It does not intend to be, either.
-* Does not require you to have an account to use it.
-* It does not replace the browser's history, or ordinary searches either.
-
-Linker has a simple objective: Be the best at one thing. That one thing is having go/links functionality for your browser to speed up your way of working.
 
 ## Installation
 
