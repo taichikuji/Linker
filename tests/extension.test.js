@@ -116,6 +116,7 @@ function runManager(initialEntries = {}, options = {}) {
   const elements = new Map();
   const tabQueries = [];
   const permissionRequests = [];
+  const openedTabs = [];
   let entries = clone(initialEntries);
 
   const document = {
@@ -124,10 +125,13 @@ function runManager(initialEntries = {}, options = {}) {
       listeners[type] = listener;
     },
     createDocumentFragment() {
-      return { children: [], appendChild(child) { this.children.push(child); } };
+      return { nodeType: 11, children: [], appendChild(child) { this.children.push(child); } };
     },
-    createElement() {
-      return createElement();
+    createElement(tagName) {
+      return createElement(tagName);
+    },
+    createTextNode(textContent) {
+      return { nodeType: 3, textContent };
     },
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, createElement());
@@ -135,11 +139,12 @@ function runManager(initialEntries = {}, options = {}) {
     }
   };
 
-  function createElement() {
+  function createElement(tagName = 'div') {
     const eventListeners = {};
     const classes = new Set(['hidden']);
     const queried = new Map();
     return {
+      tagName: tagName.toUpperCase(),
       children: [],
       classList: {
         add: (...names) => names.forEach(name => classes.add(name)),
@@ -160,10 +165,10 @@ function runManager(initialEntries = {}, options = {}) {
         return eventListeners[type]?.({ preventDefault() {}, target: this, ...event });
       },
       appendChild(child) {
-        this.children.push(child);
+        this.children.push(...(child.nodeType === 11 ? child.children : [child]));
       },
       click() {
-        return this.onclick?.();
+        return eventListeners.click?.({ target: this }) ?? this.onclick?.();
       },
       close(value = '') {
         this.open = false;
@@ -177,13 +182,17 @@ function runManager(initialEntries = {}, options = {}) {
         document.activeElement = this;
       },
       querySelector(selector) {
+        if (this === elements.get('item-list')) return this.children[0]?.querySelector(selector) ?? null;
         if (!queried.has(selector)) queried.set(selector, createElement());
         return queried.get(selector);
       },
       replaceChildren(...children) {
         this.children = children;
       },
-      select() {},
+      select() {
+        this.selectionStart = 0;
+        this.selectionEnd = this.value.length;
+      },
       showModal() {
         this.open = true;
       },
@@ -223,6 +232,7 @@ function runManager(initialEntries = {}, options = {}) {
       onChanged: eventSlot(listeners, 'storageChanged')
     },
     tabs: {
+      create: async details => openedTabs.push(clone(details)),
       query: async details => {
         tabQueries.push(clone(details));
         return options.activeTab ? [clone(options.activeTab)] : [];
@@ -250,6 +260,7 @@ function runManager(initialEntries = {}, options = {}) {
     listeners,
     tabQueries,
     permissionRequests,
+    openedTabs,
     getEntries: () => clone(entries)
   };
 }
@@ -410,6 +421,97 @@ test('manager renders browser-cached favicons with shortcut-letter fallbacks', (
     parameterizedFavicon.src,
     'chrome-extension://linker/_favicon/?pageUrl=https%3A%2F%2Fgithub.com%2Fissues&size=32'
   );
+});
+
+test('search highlights literal case-insensitive text without creating HTML', () => {
+  const result = runManager();
+  for (const [query, text, matches] of [
+    [' [a.*] ', '<img src=x> [A.*] a.*', ['[A.*]']],
+    ['<img', '<img src=x onerror=alert(1)> <IMG', ['<img', '<IMG']],
+    ['docs', 'Docs docs DOCS', ['Docs', 'docs', 'DOCS']],
+    ['.', 'a.b.c', ['.', '.']],
+    ['.*+?^${}()|[\\]', 'Literal .*+?^${}()|[\\] query', ['.*+?^${}()|[\\]']],
+    ['missing', 'No matching text', []]
+  ]) {
+    result.elements.get('search').value = query;
+    result.context.label = result.context.document.createElement('span');
+    result.context.text = text;
+    vm.runInContext('highlightText(label, text)', result.context);
+    const children = result.context.label.children;
+    assert.equal(children.map(child => child.textContent).join(''), text);
+    assert.deepEqual(children.filter(child => child.tagName === 'MARK').map(child => child.textContent), matches);
+    assert.ok(children.every(child => child.nodeType === 3 || child.tagName === 'MARK'));
+  }
+});
+
+test('search keeps sorting, URL-only matches, Enter navigation, and clear/empty states', async () => {
+  const result = runManager({
+    zebra: { url: 'https://example.com/Docs?hidden=secret' },
+    docs: { url: 'https://example.com/docs' },
+    issue: { url: 'https://example.com/{*}?hidden=secret', fallbackUrl: 'https://example.com/default' }
+  });
+  await vm.runInContext('initialize()', result.context);
+  const search = result.elements.get('search');
+  const rows = () => result.elements.get('item-list').children;
+  search.value = 'DOCS';
+  await search.dispatch('input');
+  assert.deepEqual(rows().map(row => row.querySelector('.shortcut-name').textContent), ['go/docs', 'go/zebra']);
+  assert.deepEqual(rows()[0].querySelector('.shortcut-name').children.filter(child => child.tagName === 'MARK').map(child => child.textContent), ['docs']);
+  assert.deepEqual(rows()[1].querySelector('.shortcut-url').children.filter(child => child.tagName === 'MARK').map(child => child.textContent), ['Docs']);
+  await search.dispatch('keydown', { key: 'Enter' });
+  assert.deepEqual(result.openedTabs, [{ active: true, url: 'https://example.com/docs' }]);
+
+  search.value = 'secret';
+  await search.dispatch('input');
+  assert.equal(rows().length, 2);
+  assert.ok(rows().every(row => ['.shortcut-name', '.shortcut-url'].every(selector =>
+    row.querySelector(selector).children.every(child => child.tagName !== 'MARK'))));
+  await search.dispatch('keydown', { key: 'Enter' });
+  assert.equal(result.openedTabs.at(-1).url, 'https://example.com/default');
+
+  search.value = 'missing';
+  await search.dispatch('input');
+  assert.equal(rows().length, 0);
+  assert.equal(result.elements.get('empty-state').textContent, 'No shortcuts match your search.');
+  await search.dispatch('keydown', { key: 'Enter' });
+  assert.equal(result.openedTabs.length, 2);
+  search.value = '';
+  await search.dispatch('input');
+  assert.equal(rows().length, 3);
+  assert.equal(result.elements.get('empty-state').hidden, true);
+  assert.ok(rows().every(row => row.querySelector('.shortcut-name').children.length === 0));
+});
+
+test('Cmd/Ctrl+F selects search while preserving editable fields and dialogs', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  const search = result.elements.get('search');
+  const button = result.elements.get('btn-help');
+  search.value = 'docs';
+  for (const modifier of ['ctrlKey', 'metaKey']) {
+    button.focus();
+    let prevented = false;
+    result.listeners.keydown({ key: 'f', [modifier]: true, target: button, preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+    assert.equal(result.context.document.activeElement, search);
+    assert.equal(search.selectionStart, 0);
+    assert.equal(search.selectionEnd, 4);
+  }
+  for (const options of [
+    { target: search, ctrlKey: true, shiftKey: true },
+    { target: button, ctrlKey: true, altKey: true },
+    { target: button },
+    { target: { matches: selector => selector.includes('input') }, ctrlKey: true },
+    { target: { isContentEditable: true }, metaKey: true },
+    { target: button, ctrlKey: true, modal: true }
+  ]) {
+    button.focus();
+    result.elements.get('confirm-modal').open = options.modal;
+    let prevented = false;
+    result.listeners.keydown({ key: 'f', ...options, preventDefault() { prevented = true; } });
+    assert.equal(prevented, false);
+    assert.equal(result.context.document.activeElement, button);
+  }
 });
 
 test('opening the editor reads the current URL and saves it', async () => {

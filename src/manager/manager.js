@@ -91,6 +91,14 @@ function focusSearch() {
 }
 
 function setupEventListeners() {
+  document.addEventListener('keydown', event => {
+    if (event.key.toLowerCase() !== 'f' || !(event.metaKey || event.ctrlKey)
+      || event.altKey || event.shiftKey || elements.confirmModal.open) return;
+    const target = event.target;
+    if (target !== elements.search && (target.isContentEditable || target.matches?.('input, textarea, select'))) return;
+    event.preventDefault();
+    focusSearch();
+  });
   elements.search.addEventListener('input', renderEntries);
   elements.search.addEventListener('keydown', event => {
     if (event.key === 'Enter') elements.itemList.querySelector('.shortcut-open')?.click();
@@ -216,6 +224,18 @@ function renderEntries() {
   elements.itemList.appendChild(fragment);
 }
 
+// Keep shortcut names and imported text out of HTML parsing.
+function highlightText(element, value) {
+  const query = elements.search.value.trim();
+  element.textContent = value;
+  if (!query) return;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = value.split(new RegExp(`(${escaped})`, 'gi'));
+  element.replaceChildren(...parts.map((part, index) => index % 2
+    ? Object.assign(document.createElement('mark'), { textContent: part })
+    : document.createTextNode(part)));
+}
+
 function createEntry([shortcut, value]) {
   const row = elements.entryTemplate.content.firstElementChild.cloneNode(true);
   const openButton = row.querySelector('.shortcut-open');
@@ -235,9 +255,9 @@ function createEntry([shortcut, value]) {
     icon.textContent = shortcut.charAt(0).toLocaleUpperCase();
   };
   icon.appendChild(favicon);
-  row.querySelector('.shortcut-name').textContent = `go/${shortcut}`;
+  highlightText(row.querySelector('.shortcut-name'), `go/${shortcut}`);
   row.querySelector('.variable-badge').hidden = !parameterized;
-  row.querySelector('.shortcut-url').textContent = getTargetLabel(openUrl);
+  highlightText(row.querySelector('.shortcut-url'), getTargetLabel(openUrl));
   openButton.setAttribute(
     'aria-label',
     `Open ${parameterized ? 'parameterized shortcut ' : ''}go/${shortcut}: ${openUrl}`

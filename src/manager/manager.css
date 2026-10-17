@@ -371,6 +371,12 @@ details:not([open]) > .panel-summary .disclosure-icon {
   white-space: nowrap;
 }
 
+mark {
+  color: var(--text);
+  background: color-mix(in srgb, var(--yellow) 24%, var(--surface));
+  border-radius: 2px;
+}
+
 .shortcut-name {
   min-width: 0;
   font-size: 13px;
@@ -647,7 +653,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
   background: rgba(0, 0, 0, 0.5);
 }
 
-.modal {
+.modal-box {
   width: min(420px, 100%);
   padding: 24px 32px;
   border: 1px solid var(--border);
@@ -656,7 +662,7 @@ details:not([open]) > .panel-summary .disclosure-icon {
   box-shadow: 0 8px 30px var(--shadow);
 }
 
-.modal p {
+.modal-box p {
   margin: 0 0 18px;
   font-weight: 600;
 }

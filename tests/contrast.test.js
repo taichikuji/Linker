@@ -43,6 +43,8 @@ test('manager color roles meet WCAG 2.2 contrast targets', () => {
   assert.match(css, /\.shortcut-item:hover \.shortcut-url,[^}]*color: var\(--text\)/s);
   assert.match(css, /\.variable-badge\s*\{[^}]*background: color-mix\(in srgb, var\(--blue\) 16%, var\(--surface\)\)/s);
 
+  assert.match(css, /mark\s*\{[^}]*color: var\(--text\);[^}]*background: color-mix\(in srgb, var\(--yellow\) 24%, var\(--surface\)\)/s);
+
   const base = pair('base');
   const mantle = pair('mantle');
   const surface1 = pair('surface1');
@@ -74,6 +76,8 @@ test('manager color roles meet WCAG 2.2 contrast targets', () => {
     expectContrast(`${name} error border`, red[mode], surface[mode], 3);
     expectContrast(`${name} toast border`, greenBorder[mode], mantle[mode], 3);
 
+    const highlightBackground = mix(yellow[mode], 0.24, surface[mode]);
+    expectContrast(`${name} highlighted text`, text[mode], highlightBackground, 4.5);
     const variableBackground = mix(blue[mode], 0.16, surface[mode]);
     expectContrast(`${name} variable badge`, blueText[mode], variableBackground, 4.5);
     const warningBackground = mix(yellow[mode], 0.1, surface[mode]);
