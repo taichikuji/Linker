@@ -47,7 +47,7 @@ flowchart TD
 
 ### Open a shortcut
 
-Visit `go/<shortcut>` to open its destination. For example, save `issues` with destination `https://github.com/taichikuji/Linker/issues/{*}` and default URL `https://github.com/taichikuji/Linker/issues`: `go/issues/123` opens issue 123, while `go/issues` opens the issue list.
+Visit `go/<shortcut>` to open its destination. For example, save `issues` with destination `https://github.com/taichikuji/Linker/issues/{*}` and default URL `https://github.com/taichikuji/Linker/issues`: `go/issues/123` opens issue 123, while `go/issues` opens the issue list. A trailing slash is optional; query strings and fragments on the `go/` URL are ignored, so `go/issues/123/?src=slack#details` also opens issue 123.
 
 ```mermaid
 flowchart TD

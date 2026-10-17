@@ -278,7 +278,7 @@ test('background initializes through the Chromium extension API', async () => {
       redirect: { url: 'https://github.com/' }
     },
     condition: {
-      regexFilter: '^https?://go/gh/?$',
+      regexFilter: '^https?://go/gh/?(?:[?#].*)?$',
       resourceTypes: ['main_frame']
     }
   });
@@ -294,16 +294,49 @@ test('background initializes through the Chromium extension API', async () => {
   );
 });
 
-test('redirect rules stay on the go host', async () => {
-  const { updated } = runBackground();
-  const { addRules } = await updated;
-  const matches = url => addRules.some(rule => new RegExp(rule.condition.regexFilter).test(url));
+test('redirect rules ignore query strings and fragments without changing the destination', async () => {
+  const { addRules } = await runBackground().updated;
+  const redirects = [
+    ['gh', 'https://github.com/'],
+    ['gh/', 'https://github.com/'],
+    ['issue', 'https://github.com/taichikuji/Linker/issues'],
+    ['issue/', 'https://github.com/taichikuji/Linker/issues'],
+    ['issue/123', 'https://github.com/taichikuji/Linker/issues/123'],
+    ['issue/123/', 'https://github.com/taichikuji/Linker/issues/123'],
+    ['issue/team/123/', 'https://github.com/taichikuji/Linker/issues/team/123'],
+    ['issue/a%3Fb%23c', 'https://github.com/taichikuji/Linker/issues/a%3Fb%23c']
+  ];
 
-  assert.equal(matches('http://go/gh'), true);
-  assert.equal(matches('https://go/gh/'), true);
-  assert.equal(matches('https://go/issue/123'), true);
-  assert.equal(matches('https://example.com/path://go/gh'), false);
-  assert.equal(matches('https://example.com/?tracking=go%2Fgh&next=1'), false);
+  for (const [path, destination] of redirects) {
+    for (const protocol of ['http:', 'https:']) {
+      for (const suffix of ['', '?', '#', '?src=slack', '#section', '?next=/other#section']) {
+        const url = `${protocol}//go/${path}${suffix}`;
+        const rule = addRules.toSorted((a, b) => b.priority - a.priority)
+          .find(rule => new RegExp(rule.condition.regexFilter).test(url));
+        assert.ok(rule, url);
+        const redirect = rule.action.redirect;
+        const capture = new RegExp(rule.condition.regexFilter).exec(url)[1];
+        assert.equal(redirect.url ?? redirect.regexSubstitution.replaceAll('\\1', capture), destination, url);
+      }
+    }
+  }
+});
+
+test('redirect rules reject unknown shortcuts, extra direct paths, and other hosts', async () => {
+  const { addRules } = await runBackground().updated;
+  for (const url of [
+    'http://go/missing?src=slack',
+    'http://go/gh/extra?src=slack',
+    'http://go/gh//?src=slack',
+    'http://go/gh-other?src=slack',
+    'https://example.com/path://go/gh',
+    'https://example.com/?tracking=go%2Fgh&next=1',
+    'https://go.example.com/gh?src=slack',
+    'https://go@other.example/gh?src=slack',
+    'ftp://go/gh?src=slack'
+  ]) {
+    assert.equal(addRules.some(rule => new RegExp(rule.condition.regexFilter).test(url)), false, url);
+  }
 });
 
 test('manager validates import and export through the Chromium extension API', async () => {
@@ -459,13 +492,40 @@ test('omnibox keyword opens local shortcuts in the requested tab', async () => {
   await result.listeners.omniboxInputEntered('missing', 'currentTab');
   await result.listeners.omniboxInputEntered('gh/extra', 'currentTab');
   await result.listeners.omniboxInputEntered('issue/../missing', 'currentTab');
-  await result.listeners.omniboxInputEntered('gh?search', 'currentTab');
 
   assert.deepEqual(result.navigations, [
     ['update', { url: 'http://go/GH' }],
     ['create', { url: 'http://go/issue/123', active: true }],
     ['create', { url: 'http://go/issue', active: false }]
   ]);
+});
+
+test('omnibox ignores query strings and fragments for direct, fallback, and parameterized shortcuts', async () => {
+  const result = runBackground();
+  await result.updated;
+
+  for (const path of ['GH', 'gh/', 'issue', 'issue/', 'issue/123', 'issue/123/', 'issue/team/123/']) {
+    for (const suffix of ['?', '#', '?src=slack', '#section', '?next=/other#section']) {
+      await result.listeners.omniboxInputEntered(` ${path}${suffix} `, 'currentTab');
+      assert.deepEqual(result.navigations.at(-1), ['update', { url: `http://go/${path}` }]);
+    }
+  }
+  assert.equal(result.navigations.length, 35);
+});
+
+test('omnibox still rejects unsupported and normalized paths with query strings', async () => {
+  const result = runBackground();
+  await result.updated;
+
+  for (const input of [
+    '', '?src=slack', '#section', 'missing?src=slack', 'gh/extra?src=slack',
+    'gh//?src=slack', 'issue/../missing?src=slack', 'issue/%2e%2e/gh#section',
+    'issue/123/..#section', 'issue\\123?src=slack', 'issue/a b?src=slack',
+    'issue/a\tb?src=slack', 'issue/a\nb#section'
+  ]) {
+    await result.listeners.omniboxInputEntered(input, 'currentTab');
+  }
+  assert.deepEqual(result.navigations, []);
 });
 
 test('omnibox suggests saved shortcuts matching the typed prefix', async () => {

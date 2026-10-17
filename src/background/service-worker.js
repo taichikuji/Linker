@@ -89,7 +89,7 @@ function buildRedirectRules(entries) {
           redirect: { regexSubstitution }
         },
         condition: {
-          regexFilter: `^https?://go/${directShortcut}/([^?#]+?)/?$`,
+          regexFilter: `^https?://go/${directShortcut}/([^?#]+?)/?(?:[?#].*)?$`,
           resourceTypes: CONFIG.RESOURCE_TYPES
         }
       });
@@ -103,7 +103,7 @@ function buildRedirectRules(entries) {
         redirect: { url: defaultUrl }
       },
       condition: {
-        regexFilter: `^https?://go/${directShortcut}/?$`,
+        regexFilter: `^https?://go/${directShortcut}/?(?:[?#].*)?$`,
         resourceTypes: CONFIG.RESOURCE_TYPES
       }
     });
@@ -176,13 +176,12 @@ chrome.omnibox.onInputChanged.addListener(async (text, suggest) => {
 });
 
 chrome.omnibox.onInputEntered.addListener(async (text, disposition) => {
-  const input = text.trim();
+  const input = text.trim().split(/[?#]/, 1)[0];
   const name = input.split('/')[0];
   const shortcut = name.toLowerCase();
   const url = `http://go/${input}`;
   // A rewritten path could miss the redirect rule and request the go host.
-  if (!shortcut || input.includes('?') || input.includes('#')
-    || new URL(url).pathname !== `/${input}`) return;
+  if (!shortcut || new URL(url).pathname !== `/${input}`) return;
 
   try {
     const entry = (await chrome.storage.sync.get(shortcut))[shortcut];
