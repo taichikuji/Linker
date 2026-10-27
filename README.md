@@ -103,8 +103,6 @@ bun test
 
 Before releasing, test the extension in Chrome and at least one other Chromium browser such as Brave or Edge. Check the side panel at narrow and wide widths, URL prefill, direct and parameterized shortcuts, import/export, redirect rules, and behavior after restarting the browser. The release workflow is documented in [GUIDE.md](.github/workflows/GUIDE.md).
 
-Linker's common UI follows [Stasher](https://github.com/taichikuji/Stasher). For UI changes, use the [visual review checklist](.github/workflows/GUIDE.md#ui-review) to compare both managers at matching sizes and themes.
-
 ## Contributing
 
 I am more than happy to see and welcome contributors! Just please respect my way of coding.

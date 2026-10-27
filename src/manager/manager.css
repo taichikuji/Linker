@@ -1,6 +1,3 @@
-/* Common UI primitives ported from Stasher 4ec5ca3, src/manager/manager.css.
-   Keep these aligned when changing the sibling extensions; Linker layout follows below. */
-
 /* Styles for the self-contained manager page; system colors follow the browser theme. */
 
 *, *::before, *::after {
@@ -37,8 +34,6 @@
 :root {
   color-scheme: light dark;
   --red: light-dark(#d20f39, #f38ba8);
-  --green: light-dark(#40a02b, #a6e3a1);
-  --sapphire: light-dark(#209fb5, #74c7ec);
   --blue: light-dark(#1e66f5, #89b4fa);
   --text: light-dark(#35363a, #e4e5e7);
   --muted: light-dark(#666970, #a8abb2);
@@ -61,10 +56,6 @@ body {
   margin: 0;
   padding: 20px;
   color: var(--text);
-}
-
-a {
-  color: var(--blue);
 }
 
 :focus-visible {
@@ -166,7 +157,6 @@ a {
 
 .edit-input {
   padding: 6px 10px;
-  flex-grow: 1;
 }
 
 .search-icon {
@@ -224,11 +214,6 @@ button.danger:hover { background-color: color-mix(in srgb, var(--red) 12%, trans
 
 .header-actions .icon-button:hover {
   color: var(--text);
-}
-
-.header-actions .danger,
-.header-actions .danger:hover {
-  color: var(--red);
 }
 
 #more-button { anchor-name: --actions-menu; }
@@ -405,7 +390,7 @@ button.filled:hover {
 }
 
 
-/* Linker: shortcut cards, bottom editor, and exclusive saved confirmation. */
+/* Shortcut cards and editor layout. */
 :root {
   --blue-text: light-dark(#1b5cdd, #89b4fa);
   --yellow: light-dark(#df8e1d, #f9e2af);
@@ -666,7 +651,6 @@ button {
 
 .add-form .edit-input {
   width: 100%;
-  flex-grow: 0;
 }
 
 .shortcut-field {
@@ -782,7 +766,7 @@ button {
   display: none;
 }
 
-/* Stasher's blue search tint, with an explicit readable foreground on URL metadata. */
+/* Keep highlighted destination text readable. */
 mark {
   color: var(--text);
   background: color-mix(in srgb, var(--blue) 18%, var(--surface));
