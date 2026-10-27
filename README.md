@@ -14,6 +14,12 @@ Don't know what go/links are? If curious, read about it [here!](https://www.trot
 
 Linker brings personal `go/` shortcuts to your browser, with routing handled locally.
 
+<p align="center">
+  <a href="https://chromewebstore.google.com/detail/linker/nacggecaljkbjoghmiidmkpgpkfpmhgm">
+    <img src="https://developer.chrome.com/static/docs/webstore/branding/image/iNEddTyWiMfLSwFD6qGq.png" alt="Available in the Chrome Web Store" width="206">
+  </a>
+</p>
+
 ## Preview
 
 <p align="center">
@@ -74,10 +80,6 @@ Linker routes shortcuts in your browser without a developer-operated server or a
 For examples and the full explanation, see the [How to use Linker guide](https://github.com/taichikuji/Linker/wiki/How-to-use-Linker).
 
 Read the [Linker Privacy Policy](PRIVACY.md) for details about shortcut data and Chrome Sync.
-
-## Installation
-
-Install Linker from the [Chrome Web Store](https://chromewebstore.google.com/detail/linker/nacggecaljkbjoghmiidmkpgpkfpmhgm).
 
 ## A small note about Firefox
 
