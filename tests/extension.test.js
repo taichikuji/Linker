@@ -128,6 +128,9 @@ function runManager(initialEntries = {}, options = {}) {
   const runtimeMessages = [];
   const errors = [];
   let entries = clone(initialEntries);
+  let now = 0;
+  let nextTimerId = 0;
+  const timers = new Map();
 
   const document = {
     activeElement: null,
@@ -178,6 +181,9 @@ function runManager(initialEntries = {}, options = {}) {
       appendChild(child) {
         this.children.push(...(child.nodeType === 11 ? child.children : [child]));
       },
+      contains(node) {
+        return this === node || this.children.some(child => child === node || child.contains?.(node));
+      },
       click() {
         return eventListeners.click?.({ target: this }) ?? this.onclick?.();
       },
@@ -214,7 +220,12 @@ function runManager(initialEntries = {}, options = {}) {
         this.popoverOpen = false;
       },
       matches(selector) {
-        return selector === ':popover-open' && Boolean(this.popoverOpen);
+        return selector.split(',').some(part => {
+          if (part.trim() === ':popover-open') return Boolean(this.popoverOpen);
+          if (part.trim() === ':hover') return Boolean(this.hovered);
+          if (part.trim() === ':focus-within') return this.contains(document.activeElement);
+          return false;
+        });
       },
       toggleAttribute(name, force) {
         this[name] = force;
@@ -228,7 +239,14 @@ function runManager(initialEntries = {}, options = {}) {
   const template = document.getElementById('shortcut-template');
   template.content = { firstElementChild: createElement() };
   document.getElementById('destination-hints').hidden = true;
-  document.getElementById('saved-result').hidden = true;
+  const savedActions = document.getElementById('saved-actions');
+  savedActions.hidden = true;
+  savedActions.appendChild(document.getElementById('test-shortcut'));
+  savedActions.appendChild(document.getElementById('edit-saved'));
+  const toast = document.getElementById('toast');
+  toast.appendChild(document.getElementById('toast-message'));
+  toast.appendChild(savedActions);
+  toast.appendChild(document.getElementById('toast-close'));
 
   const api = {
     declarativeNetRequest: {
@@ -277,10 +295,14 @@ function runManager(initialEntries = {}, options = {}) {
     chrome: api,
     Blob,
     URL,
-    clearTimeout() {},
+    clearTimeout: id => timers.delete(id),
     console: { error: (...args) => errors.push(args) },
     document,
-    setTimeout: () => 0
+    setTimeout: (callback, delay = 0) => {
+      const id = ++nextTimerId;
+      timers.set(id, { callback, time: now + delay });
+      return id;
+    }
   });
   vm.runInContext(managerSource, context);
 
@@ -293,6 +315,19 @@ function runManager(initialEntries = {}, options = {}) {
     openedTabs,
     runtimeMessages,
     errors,
+    advanceTime: async milliseconds => {
+      const end = now + milliseconds;
+      while (true) {
+        const next = [...timers].filter(([, timer]) => timer.time <= end)
+          .sort(([, left], [, right]) => left.time - right.time)[0];
+        if (!next) break;
+        const [id, timer] = next;
+        timers.delete(id);
+        now = timer.time;
+        await timer.callback();
+      }
+      now = end;
+    },
     getEntries: () => clone(entries),
     setEntries: value => { entries = clone(value); }
   };
@@ -315,8 +350,6 @@ async function toggleEditor(result) {
 async function saveManagerShortcut(result, shortcut, url = 'https://example.com/docs') {
   if (Object.hasOwn(result.getEntries(), shortcut)) {
     vm.runInContext(`startEditing(${JSON.stringify(shortcut)})`, result.context);
-  } else if (!result.elements.get('saved-result').hidden) {
-    await result.elements.get('add-another').click();
   }
   result.elements.get('add-section').open = true;
   result.elements.get('go-link').value = shortcut;
@@ -426,39 +459,95 @@ test('destination hints refresh after prefill, sync, and starting an edit withou
   assert.equal(hints.hidden, true);
 });
 
-test('successful saves replace the whole editor with persistent Test, Edit, and Add another actions', async () => {
+test('saving closes the editor and offers optional actions in a dismissible notification', async () => {
   const result = runManager();
   await vm.runInContext('initialize()', result.context);
   await saveManagerShortcut(result, 'docs');
-  assert.equal(result.elements.get('saved-result').hidden, false);
-  assert.equal(result.elements.get('saved-message').textContent, 'Saved go/docs.');
-  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
-  assert.equal(result.elements.get('add-section').hidden, true);
+  assert.equal(result.elements.get('saved-actions').hidden, false);
+  assert.equal(result.elements.get('toast-message').textContent, 'Saved go/docs.');
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  assert.equal(result.elements.get('add-section').hidden, false);
   assert.equal(result.elements.get('add-section').open, false);
-  assert.equal(result.context.document.activeElement, result.elements.get('test-shortcut'));
+  assert.equal(result.context.document.activeElement, result.elements.get('search'));
   assert.equal(result.elements.get('go-link').value, '');
-  assert.equal(result.elements.get('full-link').value, 'https://example.com/docs');
   assert.equal(result.elements.get('destination-hints').hidden, true);
 
   await result.elements.get('search').dispatch('input');
-  assert.equal(result.elements.get('saved-result').hidden, false);
-  assert.equal(result.elements.get('add-section').hidden, true);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
   await result.elements.get('edit-saved').click();
-  assert.equal(result.elements.get('saved-result').hidden, true);
-  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
   assert.equal(result.elements.get('add-section').open, true);
   assert.equal(result.elements.get('go-link').value, 'docs');
   await result.elements.get('editor-form').dispatch('submit');
-  assert.equal(result.elements.get('saved-message').textContent, 'Updated go/docs.');
+  assert.equal(result.elements.get('toast-message').textContent, 'Updated go/docs.');
+  assert.equal(result.elements.get('add-section').open, false);
 
-  await result.elements.get('add-another').click();
-  assert.equal(result.elements.get('saved-result').hidden, true);
-  assert.equal(result.elements.get('add-section').hidden, false);
+  result.elements.get('toast-close').focus();
+  await result.elements.get('toast-close').click();
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+  assert.deepEqual(result.getEntries(), { docs: { url: 'https://example.com/docs' } });
+  assert.deepEqual(result.runtimeMessages, []);
+  await toggleEditor(result);
   assert.equal(result.elements.get('add-section').open, true);
-  assert.equal(result.elements.get('go-link').value, '');
-  await result.elements.get('cancel-edit').dispatch('click');
-  assert.equal(result.elements.get('saved-result').hidden, true);
-  assert.equal(result.elements.get('destination-hints').hidden, true);
+});
+
+test('saved notifications expire automatically or dismiss with Escape without touching shortcuts', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  await result.advanceTime(7999);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  await result.advanceTime(1);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+  assert.equal(result.elements.get('saved-actions').hidden, true);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('add-section').open, false);
+  await saveManagerShortcut(result, 'another');
+  result.listeners.keydown({ key: 'Escape' });
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+  assert.deepEqual(Object.keys(result.getEntries()), ['docs', 'another']);
+  assert.deepEqual(result.runtimeMessages, []);
+});
+
+test('notification expiry pauses for pointer and keyboard interaction and resumes afterward', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  const toast = result.elements.get('toast');
+  await result.advanceTime(4000);
+  toast.hovered = true;
+  await toast.dispatch('pointerenter');
+  await result.advanceTime(20000);
+  assert.equal(toast.matches(':popover-open'), true);
+  toast.hovered = false;
+  await toast.dispatch('pointerleave');
+  await result.advanceTime(8000);
+  assert.equal(toast.matches(':popover-open'), false);
+
+  await saveManagerShortcut(result, 'another');
+  result.elements.get('test-shortcut').focus();
+  await toast.dispatch('focusin');
+  await result.advanceTime(20000);
+  assert.equal(toast.matches(':popover-open'), true);
+  result.elements.get('search').focus();
+  await toast.dispatch('focusout');
+  await result.advanceTime(8000);
+  assert.equal(toast.matches(':popover-open'), false);
+});
+
+test('ordinary notifications replace saved actions and retain their existing expiry', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  result.elements.get('test-shortcut').focus();
+  await result.elements.get('toast').dispatch('focusin');
+  result.listeners.runtimeMessage({ type: 'rule-update-failed' });
+  assert.equal(result.elements.get('saved-actions').hidden, true);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+  await result.advanceTime(3500);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
 });
 
 test('saved results clear only when their shortcut changes through sync or another edit begins', async () => {
@@ -474,22 +563,22 @@ test('saved results clear only when their shortcut changes through sync or anoth
     result.setEntries({ ...result.getEntries(), unrelated: { url: 'https://example.com/other' } });
     result.listeners.storageChanged({ unrelated: {} }, 'sync');
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(result.elements.get('saved-result').hidden, false);
+    assert.equal(result.elements.get('saved-actions').hidden, false);
     result.setEntries(changedEntries);
     result.listeners.storageChanged({ docs: {} }, 'sync');
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(result.elements.get('saved-result').hidden, true);
+    assert.equal(result.elements.get('saved-actions').hidden, true);
     assert.equal(result.elements.get('add-section').hidden, false);
     assert.equal(result.elements.get('add-section').open, false);
   }
   await saveManagerShortcut(result, 'another');
   vm.runInContext("startEditing('docs')", result.context);
-  assert.equal(result.elements.get('saved-result').hidden, true);
+  assert.equal(result.elements.get('saved-actions').hidden, true);
   assert.equal(result.elements.get('add-section').hidden, false);
   assert.equal(result.elements.get('add-section').open, true);
 });
 
-test('Add another clears the previous fields and respects optional active-tab access', async () => {
+test('the normal Add entry point is immediately reusable after saving with optional tab access', async () => {
   for (const granted of [true, false]) {
     const result = runManager({}, {
       tabsGranted: granted,
@@ -498,21 +587,20 @@ test('Add another clears the previous fields and respects optional active-tab ac
     await vm.runInContext('initialize()', result.context);
     result.elements.get('fallback-link').value = 'https://example.com/issues';
     await saveManagerShortcut(result, 'issues', 'https://example.com/issues/{*}');
-    await result.elements.get('add-another').click();
+    await toggleEditor(result);
 
-    assert.equal(result.elements.get('saved-result').hidden, true);
+    assert.equal(result.elements.get('saved-actions').hidden, true);
     assert.equal(result.elements.get('add-section').hidden, false);
     assert.equal(result.elements.get('add-section').open, true);
     assert.equal(result.elements.get('go-link').value, '');
     assert.equal(result.elements.get('fallback-link').value, '');
     assert.equal(result.elements.get('full-link').value, granted ? 'https://example.com/current' : '');
     assert.equal(result.elements.get('variable-badge').hidden, true);
-    assert.equal(result.context.document.activeElement, result.elements.get('full-link'));
     assert.deepEqual(result.permissionRequests, [{ permissions: ['tabs'] }]);
     assert.equal(result.tabQueries.length, granted ? 1 : 0);
     await saveManagerShortcut(result, 'next', 'https://example.com/new');
-    assert.equal(result.elements.get('saved-message').textContent, 'Saved go/next.');
-    assert.equal(result.elements.get('add-section').hidden, true);
+    assert.equal(result.elements.get('toast-message').textContent, 'Saved go/next.');
+    assert.equal(result.elements.get('add-section').hidden, false);
   }
 });
 
@@ -521,7 +609,7 @@ test('failed saves keep the editor and draft available for retry', async () => {
   const result = runManager({}, options);
   await vm.runInContext('initialize()', result.context);
   await saveManagerShortcut(result, 'draft');
-  assert.equal(result.elements.get('saved-result').hidden, true);
+  assert.equal(result.elements.get('saved-actions').hidden, true);
   assert.equal(result.elements.get('add-section').hidden, false);
   assert.equal(result.elements.get('add-section').open, true);
   assert.equal(result.elements.get('go-link').value, 'draft');
@@ -530,9 +618,9 @@ test('failed saves keep the editor and draft available for retry', async () => {
   assert.deepEqual(result.getEntries(), {});
   options.failStorageSet = false;
   await result.elements.get('editor-form').dispatch('submit');
-  assert.equal(result.elements.get('saved-result').hidden, false);
-  assert.equal(result.elements.get('add-section').hidden, true);
-  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+  assert.equal(result.elements.get('saved-actions').hidden, false);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
 });
 
 test('More actions closes before Help, Import, and Export and restores its trigger focus', async () => {
@@ -677,17 +765,19 @@ test('post-save Test waits, prevents double clicks, preserves failures, and retr
   await button.click();
   assert.equal(result.runtimeMessages.length, 1);
   assert.deepEqual(background.navigations, []);
+  await result.advanceTime(20000);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
   release();
   await pending;
   assert.equal(button.disabled, false);
-  assert.equal(result.elements.get('saved-result').hidden, false);
+  assert.equal(result.elements.get('saved-actions').hidden, false);
   assert.equal(result.elements.get('toast-message').textContent, 'Rule update failed');
   assert.equal(result.elements.get('toast').dataset.type, 'error');
   await button.click();
   assert.equal(button.disabled, false);
   assert.deepEqual(background.navigations, [['create', { active: true, url: 'http://go/docs' }]]);
   assert.deepEqual(result.permissionRequests, []);
-  assert.equal(result.elements.get('saved-message').textContent, 'Saved go/docs.');
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
 });
 
 test('post-save Test handles a disconnected worker or missing response and remains retryable', async () => {
@@ -702,7 +792,24 @@ test('post-save Test handles a disconnected worker or missing response and remai
   await button.click();
   assert.equal(result.elements.get('toast-message').textContent, 'Could not test the shortcut.');
   assert.equal(button.disabled, false);
-  assert.equal(result.elements.get('saved-result').hidden, false);
+  assert.equal(result.elements.get('saved-actions').hidden, false);
+});
+
+test('dismissing a pending test does not resurrect its notification on failure', async () => {
+  let respond;
+  const result = runManager({}, {
+    sendMessage: () => new Promise(resolve => { respond = resolve; })
+  });
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  const pending = result.elements.get('test-shortcut').click();
+  await result.elements.get('toast-close').click();
+  respond({ ok: false, error: 'Routing unavailable' });
+  await pending;
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+  assert.equal(result.elements.get('saved-actions').hidden, true);
+  assert.equal(result.elements.get('test-shortcut').disabled, false);
+  assert.equal(result.elements.get('add-section').open, false);
 });
 
 test('background initializes through the Chromium extension API', async () => {
@@ -971,7 +1078,7 @@ test('opening the editor reads the current URL and saves it', async () => {
     example: { url: sourceUrl }
   });
   assert.equal(editorSection.open, false);
-  assert.equal(editorSection.hidden, true);
+  assert.equal(editorSection.hidden, false);
 });
 
 test('declining tab access leaves the editor usable and closing does not ask again', async () => {
@@ -1002,7 +1109,7 @@ test('declining tab access leaves the editor usable and closing does not ask aga
   });
 
   assert.equal(result.elements.get('add-section').open, false);
-  assert.equal(result.elements.get('add-section').hidden, true);
+  assert.equal(result.elements.get('add-section').hidden, false);
   assert.equal(result.permissionRequests.length, 2);
   assert.equal(urlInput.value, 'https://example.com/manual');
 });

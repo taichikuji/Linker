@@ -312,6 +312,22 @@ button.danger:hover { background-color: color-mix(in srgb, var(--red) 12%, trans
   overflow-wrap: anywhere;
 }
 
+.toast-content {
+  min-width: 0;
+  flex: 1;
+}
+
+#toast:has(.saved-actions:not([hidden])) {
+  position-anchor: --shortcut-editor;
+  position-area: top;
+  align-self: end;
+  justify-self: center;
+  bottom: auto;
+  left: auto;
+  margin-bottom: 12px;
+  transform: none;
+}
+
 #toast button {
   flex-shrink: 0;
 }
@@ -604,6 +620,10 @@ button {
   overflow: hidden;
 }
 
+.editor-panel {
+  anchor-name: --shortcut-editor;
+}
+
 #add-section[open] {
   /* Native details wraps the form; its container owns scrolling at short heights. */
   overflow-y: auto;
@@ -758,19 +778,8 @@ button {
   margin-top: 20px;
 }
 
-.saved-result {
-  padding: 20px;
-}
-
-.saved-result p {
-  margin: 0;
-  font-weight: 500;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
 .saved-actions {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .capacity-warning {
@@ -792,7 +801,7 @@ button {
 .capacity-warning[hidden],
 .conditional-field[hidden],
 .destination-hints[hidden],
-.saved-result[hidden],
+.saved-actions[hidden],
 .variable-badge[hidden],
 .ui-icon[hidden] {
   display: none;

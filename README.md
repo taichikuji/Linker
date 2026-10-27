@@ -36,7 +36,7 @@ Click the Linker toolbar icon to open the side-panel manager, then select **Add 
 
 If the destination is already saved, Linker shows the matching shortcuts with an **Edit** action. Matches preserve query strings, fragments, and path differences; a shortcut's default URL is labeled separately. These hints are advisory, so you can save another name for the same destination.
 
-After saving, a compact confirmation replaces the whole editor and offers **Test shortcut**, **Edit**, and **Add another**. Test opens the actual `go/<shortcut>` address in a new tab after the browser's redirect rules are ready. For a parameterized shortcut, it tests the default destination. Opening the test tab does not verify that the destination website is available. Edit reopens the saved shortcut; Add another opens a fresh form and offers the active tab's URL if tab access is allowed. The confirmation stays while you search and clears when you start another edit or the saved shortcut changes through sync.
+After saving, the editor closes and **Add new shortcut** is immediately available again. A notification offers optional **Test shortcut** and **Edit** actions; dismiss it with × or Escape, or let it disappear after eight seconds. The timer pauses while you hover, focus its controls, or run a test. Test opens the actual `go/<shortcut>` address in a new tab after the browser's redirect rules are ready. For a parameterized shortcut, it tests the default destination. Opening the test tab does not verify that the destination website is available.
 
 ```mermaid
 flowchart TD

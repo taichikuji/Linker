@@ -37,11 +37,9 @@ const elements = {
   fallbackInput: document.getElementById('fallback-link'),
   saveButton: document.getElementById('save'),
   cancelEditButton: document.getElementById('cancel-edit'),
-  savedResult: document.getElementById('saved-result'),
-  savedMessage: document.getElementById('saved-message'),
+  savedActions: document.getElementById('saved-actions'),
   testButton: document.getElementById('test-shortcut'),
   savedEditButton: document.getElementById('edit-saved'),
-  addAnotherButton: document.getElementById('add-another'),
   moreButton: document.getElementById('more-button'),
   actionsMenu: document.getElementById('actions-menu'),
   helpButton: document.getElementById('btn-help'),
@@ -115,6 +113,8 @@ async function prefillNewShortcut() {
 
 function setupEventListeners() {
   document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !elements.confirmModal.open
+      && elements.toast.matches(':popover-open')) hideToast();
     if (event.key.toLowerCase() !== 'f' || !(event.metaKey || event.ctrlKey)
       || event.altKey || event.shiftKey || elements.confirmModal.open) return;
     const target = event.target;
@@ -151,12 +151,10 @@ function setupEventListeners() {
   elements.savedEditButton.addEventListener('click', () => {
     if (state.savedResult) startEditing(state.savedResult.shortcut);
   });
-  elements.addAnotherButton.addEventListener('click', async () => {
-    resetForm();
-    elements.addSection.open = true;
-    elements.urlInput.focus();
-    await prefillNewShortcut();
+  ['pointerenter', 'pointerleave', 'focusin'].forEach(type => {
+    elements.toast.addEventListener(type, scheduleToastDismissal);
   });
+  elements.toast.addEventListener('focusout', () => setTimeout(scheduleToastDismissal, 0));
   // Close the popover before its action opens a tab, file picker, or dialog.
   elements.actionsMenu.addEventListener('click', () => {
     elements.actionsMenu.hidePopover();
@@ -233,7 +231,7 @@ async function loadEntries() {
     const current = saved && Object.hasOwn(state.entries, saved.shortcut)
       ? state.entries[saved.shortcut] : null;
     if (saved && (!current || current.url !== saved.entry.url
-      || current.fallbackUrl !== saved.entry.fallbackUrl)) clearSavedResult();
+      || current.fallbackUrl !== saved.entry.fallbackUrl)) hideToast();
     renderEntries();
     updateCapacityWarning();
     renderDestinationHints();
@@ -382,28 +380,29 @@ function resetForm() {
 }
 
 function clearSavedResult() {
-  if (state.savedResult) elements.addSection.open = false;
-  state.savedResult = null;
-  elements.addSection.hidden = false;
-  elements.savedResult.hidden = true;
-  elements.savedMessage.textContent = '';
+  if (state.savedResult) hideToast();
 }
 
 async function testSavedShortcut() {
   if (!state.savedResult || state.testingShortcut) return;
+  const saved = state.savedResult;
   state.testingShortcut = true;
   elements.testButton.disabled = true;
+  scheduleToastDismissal();
   try {
     const response = await chrome.runtime.sendMessage({
-      type: 'test-shortcut', shortcut: state.savedResult.shortcut
+      type: 'test-shortcut', shortcut: saved.shortcut
     });
     if (!response?.ok) throw new Error(response?.error || 'Could not test the shortcut.');
-    hideToast();
+    if (state.savedResult === saved) hideToast();
   } catch (error) {
-    showToast(error.message || 'Could not test the shortcut.', 'error');
+    if (state.savedResult === saved) {
+      showToast(error.message || 'Could not test the shortcut.', 'error', saved);
+    }
   } finally {
     state.testingShortcut = false;
     elements.testButton.disabled = false;
+    scheduleToastDismissal();
   }
 }
 
@@ -467,15 +466,9 @@ async function saveShortcut() {
     renderEntries();
     updateCapacityWarning();
     resetForm();
-    hideToast();
-    state.savedResult = { shortcut, entry };
-    elements.savedMessage.textContent = `${originalShortcut ? 'Updated' : 'Saved'} go/${shortcut}.`;
-    elements.testButton.setAttribute('aria-label', `Test shortcut go/${shortcut}`);
-    elements.savedEditButton.setAttribute('aria-label', `Edit go/${shortcut}`);
     elements.addSection.open = false;
-    elements.addSection.hidden = true;
-    elements.savedResult.hidden = false;
-    elements.testButton.focus();
+    focusSearch();
+    showToast(`${originalShortcut ? 'Updated' : 'Saved'} go/${shortcut}.`, 'success', { shortcut, entry });
   } catch (error) {
     console.error('Error saving shortcut:', error);
     await loadEntries();
@@ -631,19 +624,36 @@ async function importShortcuts(event) {
   }
 }
 
-function showToast(message, type = 'success') {
+function showToast(message, type = 'success', saved = null) {
+  if (!saved && elements.savedActions.contains(document.activeElement)) focusSearch();
+  state.savedResult = saved;
+  elements.savedActions.hidden = !saved;
+  if (saved) {
+    elements.testButton.setAttribute('aria-label', `Test shortcut go/${saved.shortcut}`);
+    elements.savedEditButton.setAttribute('aria-label', `Edit go/${saved.shortcut}`);
+  }
   elements.toastMessage.textContent = message;
   elements.toast.dataset.type = type;
   elements.toast.showPopover();
+  scheduleToastDismissal();
+}
 
-  if (state.toastTimeout) clearTimeout(state.toastTimeout);
-  state.toastTimeout = setTimeout(hideToast, 3500);
+function scheduleToastDismissal() {
+  clearTimeout(state.toastTimeout);
+  state.toastTimeout = null;
+  if (!elements.toast.matches(':popover-open') || state.testingShortcut
+    || elements.toast.matches(':hover, :focus-within')) return;
+  state.toastTimeout = setTimeout(hideToast, state.savedResult ? 8000 : 3500);
 }
 
 function hideToast() {
+  const restoreFocus = elements.toast.contains(document.activeElement);
   elements.toast.hidePopover();
-  if (state.toastTimeout) clearTimeout(state.toastTimeout);
+  clearTimeout(state.toastTimeout);
   state.toastTimeout = null;
+  state.savedResult = null;
+  elements.savedActions.hidden = true;
+  if (restoreFocus) focusSearch();
 }
 
 function showConfirmModal(message, { confirmLabel = 'Delete', danger = true } = {}) {

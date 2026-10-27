@@ -119,22 +119,18 @@
             </div>
           </form>
         </details>
-        <div role="status" aria-live="polite" aria-atomic="true">
-          <div id="saved-result" class="saved-result" hidden>
-            <p id="saved-message"></p>
-            <div class="saved-actions">
-              <button id="test-shortcut" class="primary" type="button">Test shortcut</button>
-              <button id="edit-saved" type="button">Edit</button>
-              <button id="add-another" class="secondary" type="button">Add another</button>
-            </div>
-          </div>
-        </div>
       </section>
     </main>
   </div>
 
   <div id="toast" class="toast" popover="manual" role="status" aria-live="polite" aria-atomic="true">
-    <span id="toast-message"></span>
+    <div class="toast-content">
+      <span id="toast-message"></span>
+      <div id="saved-actions" class="saved-actions" hidden>
+        <button id="test-shortcut" class="primary" type="button">Test shortcut</button>
+        <button id="edit-saved" type="button">Edit</button>
+      </div>
+    </div>
     <button id="toast-close" class="icon-btn" type="button" aria-label="Dismiss notification"><svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
   </div>
 
