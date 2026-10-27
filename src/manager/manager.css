@@ -89,9 +89,8 @@ body {
 
 
 .header,
-.shortcut-item,
+.shortcut-panel,
 .editor-panel {
-  margin-bottom: 20px;
   border: 1px solid var(--border);
   background: var(--surface);
   border-radius: 6px;
@@ -194,7 +193,6 @@ button.primary { --button-color: var(--blue); color: var(--button-color); }
 button.primary:hover { background-color: color-mix(in srgb, var(--blue) 12%, transparent); }
 button.danger { --button-color: var(--red); color: var(--button-color); }
 button.danger:hover { background-color: color-mix(in srgb, var(--red) 12%, transparent); }
-.icon-only .ui-icon,
 .header-actions .ui-icon { width: 18px; height: 18px; margin-right: 0; }
 
 /* Header actions */
@@ -261,18 +259,17 @@ button.danger:hover { background-color: color-mix(in srgb, var(--red) 12%, trans
 
 
 .shortcut-icon {
-  width: 20px;
-  height: 20px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
 }
 
 .shortcut-icon-fallback {
   display: grid;
   place-items: center;
-  border-radius: 5px;
+  border-radius: 8px;
   background: var(--mantle);
-  color: light-dark(#1b5cdd, var(--blue));
-  font-size: 10px;
+  color: var(--blue-text);
   font-weight: 700;
 }
 
@@ -288,7 +285,6 @@ button.danger:hover { background-color: color-mix(in srgb, var(--red) 12%, trans
   font-size: 16px;
   padding: 4px;
 }
-.icon-only { padding: 8px; }
 .icon-btn:hover { color: var(--blue); background-color: var(--surface1); }
 
 
@@ -390,7 +386,7 @@ button.filled:hover {
 }
 
 
-/* Shortcut cards and editor layout. */
+/* Shortcut list and editor layout. */
 :root {
   --blue-text: light-dark(#1b5cdd, #89b4fa);
   --yellow: light-dark(#df8e1d, #f9e2af);
@@ -439,47 +435,46 @@ button {
 
 .shortcut-panel {
   display: flex;
+  min-width: 0;
   min-height: 0;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .shortcuts {
   min-height: 0;
+  flex: 1;
   overflow-y: auto;
 }
 
 .shortcut-list {
   margin: 0;
-  padding: 0;
+  padding: 10px;
   list-style: none;
 }
 
 .shortcut-item {
+  position: relative;
   min-width: 0;
-  padding: 12px 20px;
-  gap: 10px;
-  overflow: hidden;
-  transition: background-color 0.3s;
+  border-radius: 8px;
 }
 
-.shortcut-item:last-child {
-  margin-bottom: 0;
+.shortcut-item:hover,
+.shortcut-item:focus-within {
+  background: var(--surface-hover);
 }
 
 .shortcut-open {
   min-width: 0;
   flex: 1;
-  gap: 10px;
-  padding: 0;
+  gap: 11px;
+  padding: 9px 88px 9px 10px;
+  font-weight: 400;
   text-align: left;
 }
 
 .shortcut-open:hover {
   background: transparent;
-}
-
-.shortcut-open:hover .shortcut-name {
-  color: var(--blue);
 }
 
 .shortcut-copy {
@@ -506,54 +501,91 @@ button {
 
 .shortcut-name {
   min-width: 0;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .shortcut-url {
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 11px;
+}
+
+.shortcut-item:hover .shortcut-url,
+.shortcut-item:focus-within .shortcut-url {
+  color: var(--text);
 }
 
 .variable-badge {
   padding: 2px 6px;
-  border-radius: 16px;
+  border-radius: 999px;
   background: color-mix(in srgb, var(--blue) 16%, var(--surface));
   color: var(--blue-text);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .open-indicator {
   display: grid;
   flex-shrink: 0;
   place-items: center;
-  color: var(--blue);
+  color: var(--muted);
+  opacity: 0;
 }
 
 .open-indicator .ui-icon {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   margin: 0;
 }
 
 .shortcut-actions {
-  flex-shrink: 0;
-  gap: 10px;
+  position: absolute;
+  right: 8px;
+  gap: 2px;
 }
 
-.shortcut-actions button {
-  font-size: 12px;
+.shortcut-edit,
+.shortcut-delete {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  opacity: 0;
 }
 
 .shortcut-edit {
-  opacity: 0;
-  transition: opacity 0.15s;
+  color: var(--blue);
+}
+
+.shortcut-delete {
+  color: var(--red);
+}
+
+.shortcut-edit .ui-icon,
+.shortcut-delete .ui-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 0;
 }
 
 .shortcut-item:hover .shortcut-edit,
-.shortcut-item:focus-within .shortcut-edit {
+.shortcut-item:hover .shortcut-delete,
+.shortcut-item:hover .open-indicator,
+.shortcut-item:focus-within .shortcut-edit,
+.shortcut-item:focus-within .shortcut-delete,
+.shortcut-item:focus-within .open-indicator {
   opacity: 1;
+}
+
+.shortcut-edit:hover {
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+}
+
+.shortcut-delete:hover {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
 }
 
 .empty-state {
@@ -792,7 +824,9 @@ mark {
 }
 
 @media (hover: none) {
-  .shortcut-edit {
+  .shortcut-edit,
+  .shortcut-delete,
+  .open-indicator {
     opacity: 1;
   }
 }

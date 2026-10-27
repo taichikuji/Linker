@@ -75,7 +75,7 @@ flowchart TD
 
 Ordinary URLs, unknown shortcuts, and unsupported `go/` paths receive no redirect from Linker. For example, a shortcut without `{*}` does not accept an extra path such as `go/docs/123`.
 
-The manager displays shortcuts as individual cards, with search in the header and **More actions (⋮) → Help, Export, Import**. Click outside More actions or press Escape to close it. Press Cmd/Ctrl+F outside the editor or a dialog to focus search. Matching shortcut names and destinations are highlighted; Enter opens the first result. Opening a shortcut containing `{*}` from the manager uses its default URL. In Chrome's address bar, type `go/` and press Space to see saved shortcut names matching the prefix you type; unknown or unsupported inputs do not open a tab.
+The manager displays shortcuts as a compact list, with search in the header and **More actions (⋮) → Help, Export, Import**. Click outside More actions or press Escape to close it. Press Cmd/Ctrl+F outside the editor or a dialog to focus search. Matching shortcut names and destinations are highlighted; Enter opens the first result. Opening a shortcut containing `{*}` from the manager uses its default URL. In Chrome's address bar, type `go/` and press Space to see saved shortcut names matching the prefix you type; unknown or unsupported inputs do not open a tab.
 
 You can export shortcuts as JSON and import them into Linker, including compatible [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj) exports. Shortcuts use Chrome's sync storage and can sync between browsers according to your Chrome Sync settings. The manager follows your browser's light or dark theme.
 
