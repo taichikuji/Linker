@@ -32,6 +32,7 @@ function runBackground(options = {}) {
   const runtimeMessages = [];
   const openedPanels = [];
   const navigations = [];
+  const appliedUpdates = [];
   const errors = [];
   let ruleUpdateCalls = 0;
   let resolveUpdate;
@@ -45,13 +46,16 @@ function runBackground(options = {}) {
       getDynamicRules: async () => [{ id: 99 }],
       updateDynamicRules: async details => {
         ruleUpdateCalls += 1;
+        await options.beforeRuleUpdate?.(clone(details), ruleUpdateCalls);
         if (ruleUpdateCalls === options.failRuleUpdateAt) {
           throw new Error('Rule update failed');
         }
+        appliedUpdates.push(clone(details));
         resolveUpdate(clone(details));
       }
     },
     runtime: {
+      onMessage: eventSlot(listeners, 'runtimeMessage'),
       sendMessage: async message => runtimeMessages.push(clone(message))
     },
     action: {
@@ -67,11 +71,14 @@ function runBackground(options = {}) {
     },
     tabs: {
       update: async details => navigations.push(['update', clone(details)]),
-      create: async details => navigations.push(['create', clone(details)])
+      create: async details => {
+        if (options.failTabCreate) throw new Error('Tab could not be opened');
+        navigations.push(['create', clone(details)]);
+      }
     },
     storage: {
       sync: {
-        get: async () => options.entries ?? ({
+        get: async () => options.getEntries?.() ?? options.entries ?? ({
           gh: { url: 'https://github.com/' },
           issue: {
             url: 'https://github.com/taichikuji/Linker/issues/{*}',
@@ -107,6 +114,7 @@ function runBackground(options = {}) {
     errors,
     openedPanels,
     navigations,
+    appliedUpdates,
     getRuleUpdateCalls: () => ruleUpdateCalls
   };
 }
@@ -117,7 +125,12 @@ function runManager(initialEntries = {}, options = {}) {
   const tabQueries = [];
   const permissionRequests = [];
   const openedTabs = [];
+  const runtimeMessages = [];
+  const errors = [];
   let entries = clone(initialEntries);
+  let now = 0;
+  let nextTimerId = 0;
+  const timers = new Map();
 
   const document = {
     activeElement: null,
@@ -154,6 +167,7 @@ function runManager(initialEntries = {}, options = {}) {
       dataset: {},
       files: [],
       hidden: false,
+      disabled: false,
       value: '',
       addEventListener(type, listener) {
         eventListeners[type] = listener;
@@ -166,6 +180,9 @@ function runManager(initialEntries = {}, options = {}) {
       },
       appendChild(child) {
         this.children.push(...(child.nodeType === 11 ? child.children : [child]));
+      },
+      contains(node) {
+        return this === node || this.children.some(child => child === node || child.contains?.(node));
       },
       click() {
         return eventListeners.click?.({ target: this }) ?? this.onclick?.();
@@ -196,6 +213,23 @@ function runManager(initialEntries = {}, options = {}) {
       showModal() {
         this.open = true;
       },
+      showPopover() {
+        this.popoverOpen = true;
+      },
+      hidePopover() {
+        this.popoverOpen = false;
+      },
+      matches(selector) {
+        return selector.split(',').some(part => {
+          if (part.trim() === ':popover-open') return Boolean(this.popoverOpen);
+          if (part.trim() === ':hover') return Boolean(this.hovered);
+          if (part.trim() === ':focus-within') return this.contains(document.activeElement);
+          return false;
+        });
+      },
+      toggleAttribute(name, force) {
+        this[name] = force;
+      },
       setAttribute(name, value) {
         this[name] = value;
       }
@@ -204,6 +238,15 @@ function runManager(initialEntries = {}, options = {}) {
 
   const template = document.getElementById('shortcut-template');
   template.content = { firstElementChild: createElement() };
+  document.getElementById('destination-hints').hidden = true;
+  const savedActions = document.getElementById('saved-actions');
+  savedActions.hidden = true;
+  savedActions.appendChild(document.getElementById('test-shortcut'));
+  savedActions.appendChild(document.getElementById('edit-saved'));
+  const toast = document.getElementById('toast');
+  toast.appendChild(document.getElementById('toast-message'));
+  toast.appendChild(savedActions);
+  toast.appendChild(document.getElementById('toast-close'));
 
   const api = {
     declarativeNetRequest: {
@@ -217,6 +260,10 @@ function runManager(initialEntries = {}, options = {}) {
     },
     runtime: {
       getURL: path => `chrome-extension://linker/${path}`,
+      sendMessage: async message => {
+        runtimeMessages.push(clone(message));
+        return options.sendMessage ? options.sendMessage(clone(message)) : { ok: true };
+      },
       onMessage: eventSlot(listeners, 'runtimeMessage')
     },
     storage: {
@@ -226,6 +273,7 @@ function runManager(initialEntries = {}, options = {}) {
           delete entries[key];
         },
         set: async values => {
+          if (options.failStorageSet) throw new Error('Storage write failed');
           entries = { ...entries, ...clone(values) };
         }
       },
@@ -247,10 +295,14 @@ function runManager(initialEntries = {}, options = {}) {
     chrome: api,
     Blob,
     URL,
-    clearTimeout() {},
-    console,
+    clearTimeout: id => timers.delete(id),
+    console: { error: (...args) => errors.push(args) },
     document,
-    setTimeout: () => 0
+    setTimeout: (callback, delay = 0) => {
+      const id = ++nextTimerId;
+      timers.set(id, { callback, time: now + delay });
+      return id;
+    }
   });
   vm.runInContext(managerSource, context);
 
@@ -261,8 +313,31 @@ function runManager(initialEntries = {}, options = {}) {
     tabQueries,
     permissionRequests,
     openedTabs,
-    getEntries: () => clone(entries)
+    runtimeMessages,
+    errors,
+    advanceTime: async milliseconds => {
+      const end = now + milliseconds;
+      while (true) {
+        const next = [...timers].filter(([, timer]) => timer.time <= end)
+          .sort(([, left], [, right]) => left.time - right.time)[0];
+        if (!next) break;
+        const [id, timer] = next;
+        timers.delete(id);
+        now = timer.time;
+        await timer.callback();
+      }
+      now = end;
+    },
+    getEntries: () => clone(entries),
+    setEntries: value => { entries = clone(value); }
   };
+}
+
+function sendBackgroundMessage(result, message) {
+  return new Promise(resolve => {
+    const keepOpen = result.listeners.runtimeMessage(message, {}, response => resolve(clone(response)));
+    assert.equal(keepOpen, true);
+  });
 }
 
 async function toggleEditor(result) {
@@ -271,6 +346,471 @@ async function toggleEditor(result) {
   section.open = !section.open;
   await clicking;
 }
+
+async function saveManagerShortcut(result, shortcut, url = 'https://example.com/docs') {
+  if (Object.hasOwn(result.getEntries(), shortcut)) {
+    vm.runInContext(`startEditing(${JSON.stringify(shortcut)})`, result.context);
+  }
+  result.elements.get('add-section').open = true;
+  result.elements.get('go-link').value = shortcut;
+  result.elements.get('full-link').value = url;
+  await result.elements.get('full-link').dispatch('input');
+  await result.elements.get('editor-form').dispatch('submit');
+}
+
+test('destination hints match parsed URLs while preserving paths, queries, and fragments', async () => {
+  const destination = 'https://example.com/docs?view=all#top';
+  const result = runManager({
+    zulu: { url: destination },
+    alpha: { url: 'https://EXAMPLE.com:443/docs?view=all#top' }
+  });
+  await vm.runInContext('initialize()', result.context);
+  const input = result.elements.get('full-link');
+  const hints = result.elements.get('destination-hints');
+
+  for (const url of [destination, ' https://EXAMPLE.com:443/docs?view=all#top ']) {
+    input.value = url;
+    await input.dispatch('input');
+    assert.equal(hints.hidden, false);
+    assert.deepEqual(hints.children.map(row => row.children[0].textContent), [
+      'Already saved as go/alpha', 'Already saved as go/zulu'
+    ]);
+    assert.equal(input.value, url);
+  }
+  for (const url of [
+    '', 'not a URL', 'javascript:alert(1)', 'http://example.com/docs?view=all#top',
+    'https://example.com/docs/?view=all#top', 'https://example.com/Docs?view=all#top',
+    'https://example.com/docs?view=other#top', 'https://example.com/docs?view=all#other',
+    'https://example.com/docs?view=all', 'https://example.com/elsewhere'
+  ]) {
+    input.value = url;
+    await input.dispatch('input');
+    assert.equal(hints.hidden, true, url);
+    assert.equal(hints.children.length, 0, url);
+  }
+  assert.deepEqual(result.getEntries(), {
+    zulu: { url: destination }, alpha: { url: 'https://EXAMPLE.com:443/docs?view=all#top' }
+  });
+});
+
+test('destination hints distinguish literal templates and default destinations and render text safely', async () => {
+  const result = runManager({
+    issue: { url: 'https://example.com/issues/{*}', fallbackUrl: 'https://example.com/issues' },
+    'a<b&c': { url: 'https://example.com/issues' }
+  });
+  await vm.runInContext('initialize()', result.context);
+  const input = result.elements.get('full-link');
+  const hints = result.elements.get('destination-hints');
+
+  input.value = 'https://example.com/issues';
+  await input.dispatch('input');
+  assert.deepEqual(hints.children.map(row => row.children[0].textContent), [
+    'Already saved as go/a<b&c', 'Default destination for go/issue'
+  ]);
+  assert.equal(hints.children[0].children[0].tagName, 'SPAN');
+  assert.equal(hints.children[0].children[0].children.length, 0);
+  input.value = 'https://example.com/issues/{*}';
+  await input.dispatch('input');
+  assert.deepEqual(hints.children.map(row => row.children[0].textContent), ['Already saved as go/issue']);
+  input.value = 'https://example.com/issues/123';
+  await input.dispatch('input');
+  assert.equal(hints.hidden, true);
+});
+
+test('destination hints edit existing shortcuts, exclude the current edit, and allow another name', async () => {
+  const result = runManager({ docs: { url: 'https://example.com/docs' } });
+  await vm.runInContext('initialize()', result.context);
+  const input = result.elements.get('full-link');
+  const hints = result.elements.get('destination-hints');
+  input.value = 'https://example.com/docs';
+  await input.dispatch('input');
+  const edit = hints.children[0].children[1];
+  assert.equal(edit.type, 'button');
+  assert.equal(edit['aria-label'], 'Edit go/docs');
+  await edit.click();
+  assert.equal(result.elements.get('form-title').textContent, 'Edit go/docs');
+  assert.equal(result.context.document.activeElement, input);
+  assert.equal(hints.hidden, true);
+
+  await result.elements.get('cancel-edit').dispatch('click');
+  await saveManagerShortcut(result, 'another');
+  assert.deepEqual(result.getEntries(), {
+    docs: { url: 'https://example.com/docs' }, another: { url: 'https://example.com/docs' }
+  });
+});
+
+test('destination hints refresh after prefill, sync, and starting an edit without changing the draft', async () => {
+  const result = runManager({ docs: { url: 'https://example.com/docs' } }, {
+    activeTab: { url: 'https://example.com/docs' }
+  });
+  await vm.runInContext('initialize()', result.context);
+  await toggleEditor(result);
+  const hints = result.elements.get('destination-hints');
+  assert.equal(hints.children[0].children[0].textContent, 'Already saved as go/docs');
+  result.setEntries({
+    replacement: { url: 'https://example.com/docs' },
+    elsewhere: { url: 'https://example.com/other' }
+  });
+  result.listeners.storageChanged({ docs: { newValue: null } }, 'sync');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(hints.children[0].children[0].textContent, 'Already saved as go/replacement');
+  assert.equal(result.elements.get('full-link').value, 'https://example.com/docs');
+  vm.runInContext("startEditing('elsewhere')", result.context);
+  assert.equal(hints.hidden, true);
+});
+
+test('saving closes the editor and offers optional actions in a dismissible notification', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  assert.equal(result.elements.get('saved-actions').hidden, false);
+  assert.equal(result.elements.get('toast-message').textContent, 'Saved go/docs.');
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('add-section').open, false);
+  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+  assert.equal(result.elements.get('go-link').value, '');
+  assert.equal(result.elements.get('destination-hints').hidden, true);
+
+  await result.elements.get('search').dispatch('input');
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  await result.elements.get('edit-saved').click();
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+  assert.equal(result.elements.get('add-section').open, true);
+  assert.equal(result.elements.get('go-link').value, 'docs');
+  await result.elements.get('editor-form').dispatch('submit');
+  assert.equal(result.elements.get('toast-message').textContent, 'Updated go/docs.');
+  assert.equal(result.elements.get('add-section').open, false);
+
+  result.elements.get('toast-close').focus();
+  await result.elements.get('toast-close').click();
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+  assert.deepEqual(result.getEntries(), { docs: { url: 'https://example.com/docs' } });
+  assert.deepEqual(result.runtimeMessages, []);
+  await toggleEditor(result);
+  assert.equal(result.elements.get('add-section').open, true);
+});
+
+test('saved notifications expire automatically or dismiss with Escape without touching shortcuts', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  await result.advanceTime(7999);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  await result.advanceTime(1);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+  assert.equal(result.elements.get('saved-actions').hidden, true);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('add-section').open, false);
+  await saveManagerShortcut(result, 'another');
+  result.listeners.keydown({ key: 'Escape' });
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+  assert.deepEqual(Object.keys(result.getEntries()), ['docs', 'another']);
+  assert.deepEqual(result.runtimeMessages, []);
+});
+
+test('notification expiry pauses for pointer and keyboard interaction and resumes afterward', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  const toast = result.elements.get('toast');
+  await result.advanceTime(4000);
+  toast.hovered = true;
+  await toast.dispatch('pointerenter');
+  await result.advanceTime(20000);
+  assert.equal(toast.matches(':popover-open'), true);
+  toast.hovered = false;
+  await toast.dispatch('pointerleave');
+  await result.advanceTime(8000);
+  assert.equal(toast.matches(':popover-open'), false);
+
+  await saveManagerShortcut(result, 'another');
+  result.elements.get('test-shortcut').focus();
+  await toast.dispatch('focusin');
+  await result.advanceTime(20000);
+  assert.equal(toast.matches(':popover-open'), true);
+  result.elements.get('search').focus();
+  await toast.dispatch('focusout');
+  await result.advanceTime(8000);
+  assert.equal(toast.matches(':popover-open'), false);
+});
+
+test('ordinary notifications replace saved actions and retain their existing expiry', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  result.elements.get('test-shortcut').focus();
+  await result.elements.get('toast').dispatch('focusin');
+  result.listeners.runtimeMessage({ type: 'rule-update-failed' });
+  assert.equal(result.elements.get('saved-actions').hidden, true);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  assert.equal(result.context.document.activeElement, result.elements.get('search'));
+  await result.advanceTime(3500);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+});
+
+test('saved results clear only when their shortcut changes through sync or another edit begins', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  for (const changedEntries of [
+    { docs: { url: 'https://example.com/changed' } },
+    {},
+    { renamed: { url: 'https://example.com/docs' } },
+    { docs: { url: 'https://example.com/issues/{*}', fallbackUrl: 'https://example.com/issues' } }
+  ]) {
+    await saveManagerShortcut(result, 'docs');
+    result.setEntries({ ...result.getEntries(), unrelated: { url: 'https://example.com/other' } });
+    result.listeners.storageChanged({ unrelated: {} }, 'sync');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(result.elements.get('saved-actions').hidden, false);
+    result.setEntries(changedEntries);
+    result.listeners.storageChanged({ docs: {} }, 'sync');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(result.elements.get('saved-actions').hidden, true);
+    assert.equal(result.elements.get('add-section').hidden, false);
+    assert.equal(result.elements.get('add-section').open, false);
+  }
+  await saveManagerShortcut(result, 'another');
+  vm.runInContext("startEditing('docs')", result.context);
+  assert.equal(result.elements.get('saved-actions').hidden, true);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('add-section').open, true);
+});
+
+test('the normal Add entry point is immediately reusable after saving with optional tab access', async () => {
+  for (const granted of [true, false]) {
+    const result = runManager({}, {
+      tabsGranted: granted,
+      activeTab: { url: 'https://example.com/current' }
+    });
+    await vm.runInContext('initialize()', result.context);
+    result.elements.get('fallback-link').value = 'https://example.com/issues';
+    await saveManagerShortcut(result, 'issues', 'https://example.com/issues/{*}');
+    await toggleEditor(result);
+
+    assert.equal(result.elements.get('saved-actions').hidden, true);
+    assert.equal(result.elements.get('add-section').hidden, false);
+    assert.equal(result.elements.get('add-section').open, true);
+    assert.equal(result.elements.get('go-link').value, '');
+    assert.equal(result.elements.get('fallback-link').value, '');
+    assert.equal(result.elements.get('full-link').value, granted ? 'https://example.com/current' : '');
+    assert.equal(result.elements.get('variable-badge').hidden, true);
+    assert.deepEqual(result.permissionRequests, [{ permissions: ['tabs'] }]);
+    assert.equal(result.tabQueries.length, granted ? 1 : 0);
+    await saveManagerShortcut(result, 'next', 'https://example.com/new');
+    assert.equal(result.elements.get('toast-message').textContent, 'Saved go/next.');
+    assert.equal(result.elements.get('add-section').hidden, false);
+  }
+});
+
+test('failed saves keep the editor and draft available for retry', async () => {
+  const options = { failStorageSet: true };
+  const result = runManager({}, options);
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'draft');
+  assert.equal(result.elements.get('saved-actions').hidden, true);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('add-section').open, true);
+  assert.equal(result.elements.get('go-link').value, 'draft');
+  assert.equal(result.elements.get('full-link').value, 'https://example.com/docs');
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  assert.deepEqual(result.getEntries(), {});
+  options.failStorageSet = false;
+  await result.elements.get('editor-form').dispatch('submit');
+  assert.equal(result.elements.get('saved-actions').hidden, false);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+});
+
+test('More actions closes before Help, Import, and Export and restores its trigger focus', async () => {
+  const result = runManager({ docs: { url: 'https://example.com/docs' } });
+  await vm.runInContext('initialize()', result.context);
+  const menu = result.elements.get('actions-menu');
+  let filePickerOpened = false;
+  result.elements.get('import-file').click = () => { filePickerOpened = true; };
+  for (const action of ['btn-help', 'btn-import', 'btn-export']) {
+    menu.showPopover();
+    // The browser dispatches the parent's capture listener before the button action.
+    await menu.dispatch('click');
+    assert.equal(menu.matches(':popover-open'), false);
+    assert.equal(result.context.document.activeElement, result.elements.get('more-button'));
+    await result.elements.get(action).click();
+  }
+  assert.equal(filePickerOpened, true);
+  assert.deepEqual(result.openedTabs, [{ active: true, url: 'https://github.com/taichikuji/Linker/wiki/How-to-use-Linker' }]);
+  assert.equal(result.elements.get('toast-message').textContent, 'Exported your shortcuts.');
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  await result.elements.get('toast-close').click();
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+});
+
+test('confirmation dialogs retain cancellation and focus restoration with title and description', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  const opener = result.elements.get('more-button');
+  opener.focus();
+  const deleting = vm.runInContext("showConfirmModal('Delete go/docs?')", result.context);
+  assert.equal(result.elements.get('confirm-title').textContent, 'Delete shortcut?');
+  assert.equal(result.elements.get('confirm-description').textContent, 'Delete go/docs?');
+  assert.equal(result.elements.get('confirm-ok').className, 'danger filled');
+  assert.equal(result.elements.get('confirm-icon').hidden, false);
+  assert.equal(result.context.document.activeElement, result.elements.get('confirm-cancel'));
+  result.elements.get('confirm-modal').close();
+  assert.equal(await deleting, false);
+  assert.equal(result.context.document.activeElement, opener);
+
+  const replacing = vm.runInContext("showConfirmModal('Replace 1 shortcut?', {confirmLabel: 'Import', danger: false})", result.context);
+  assert.equal(result.elements.get('confirm-title').textContent, 'Replace shortcuts?');
+  assert.equal(result.elements.get('confirm-ok').className, 'primary filled');
+  assert.equal(result.elements.get('confirm-icon').hidden, true);
+  await result.elements.get('confirm-ok').click();
+  assert.equal(await replacing, true);
+  assert.equal(result.context.document.activeElement, opener);
+});
+
+test('shortcut tests wait for applied rules and open direct and default go routes', async () => {
+  let release;
+  const paused = new Promise(resolve => { release = resolve; });
+  const result = runBackground({ beforeRuleUpdate: async (details, call) => {
+    if (call === 2) await paused;
+  } });
+  await result.updated;
+  const response = sendBackgroundMessage(result, { type: 'test-shortcut', shortcut: 'gh' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(result.navigations, []);
+  release();
+  assert.deepEqual(await response, { ok: true });
+  assert.deepEqual(await sendBackgroundMessage(result, { type: 'test-shortcut', shortcut: 'issue' }), { ok: true });
+  assert.deepEqual(result.navigations, [
+    ['create', { active: true, url: 'http://go/gh' }],
+    ['create', { active: true, url: 'http://go/issue' }]
+  ]);
+  const fallback = result.appliedUpdates.at(-1).addRules.find(rule =>
+    new RegExp(rule.condition.regexFilter).test('http://go/issue'));
+  assert.equal(fallback.action.redirect.url, 'https://github.com/taichikuji/Linker/issues');
+});
+
+test('shortcut tests reject malformed, unavailable, and invalid stored shortcuts without navigation', async () => {
+  const result = runBackground({ entries: {
+    valid: { url: 'https://example.com' },
+    unsafe: { url: 'javascript:alert(1)' },
+    noDefault: { url: 'https://example.com/{*}' },
+    'bad/path': { url: 'https://example.com' }
+  } });
+  await result.updated;
+  for (const shortcut of [
+    undefined, null, 42, {}, [], '', 'a'.repeat(101), 'bad/path', '.', '..',
+    'bad?query', 'bad#fragment', 'bad%20path', 'bad\\path', 'bad path',
+    'bad\tpath', 'bad&path', 'é', 'missing', 'unsafe', 'noDefault', 'constructor'
+  ]) {
+    const response = await sendBackgroundMessage(result, { type: 'test-shortcut', shortcut });
+    assert.equal(response.ok, false, String(shortcut));
+    assert.equal(typeof response.error, 'string');
+  }
+  assert.deepEqual(result.navigations, []);
+  assert.equal(result.listeners.runtimeMessage({ type: 'unrelated' }, {}, () => {
+    assert.fail('Unrelated messages must not receive a test response');
+  }), undefined);
+});
+
+test('shortcut tests use the queued rebuild snapshot when a shortcut disappears before installation', async () => {
+  let release;
+  const paused = new Promise(resolve => { release = resolve; });
+  const options = {
+    entries: { docs: { url: 'https://example.com' } },
+    beforeRuleUpdate: async (details, call) => { if (call === 1) await paused; }
+  };
+  const result = runBackground(options);
+  const response = sendBackgroundMessage(result, { type: 'test-shortcut', shortcut: 'docs' });
+  options.entries = {};
+  release();
+  assert.equal((await response).ok, false);
+  assert.deepEqual(result.navigations, []);
+});
+
+test('shortcut tests report routing and tab failures and recover on retry', async () => {
+  const options = { failRuleUpdateAt: 2, failTabCreate: true };
+  const result = runBackground(options);
+  await result.updated;
+  const message = { type: 'test-shortcut', shortcut: 'gh' };
+  assert.deepEqual(await sendBackgroundMessage(result, message), { ok: false, error: 'Rule update failed' });
+  assert.deepEqual(await sendBackgroundMessage(result, message), { ok: false, error: 'Tab could not be opened' });
+  assert.deepEqual(result.navigations, []);
+  options.failTabCreate = false;
+  assert.deepEqual(await sendBackgroundMessage(result, message), { ok: true });
+  assert.deepEqual(result.navigations, [['create', { active: true, url: 'http://go/gh' }]]);
+});
+
+test('post-save Test waits, prevents double clicks, preserves failures, and retries without tab permissions', async () => {
+  let background;
+  let release;
+  const paused = new Promise(resolve => { release = resolve; });
+  const result = runManager({}, {
+    tabsGranted: false,
+    sendMessage: message => sendBackgroundMessage(background, message)
+  });
+  background = runBackground({
+    getEntries: result.getEntries,
+    failRuleUpdateAt: 2,
+    beforeRuleUpdate: async (details, call) => { if (call === 2) await paused; }
+  });
+  await background.updated;
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  const button = result.elements.get('test-shortcut');
+  const pending = button.click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(button.disabled, true);
+  await button.click();
+  assert.equal(result.runtimeMessages.length, 1);
+  assert.deepEqual(background.navigations, []);
+  await result.advanceTime(20000);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  release();
+  await pending;
+  assert.equal(button.disabled, false);
+  assert.equal(result.elements.get('saved-actions').hidden, false);
+  assert.equal(result.elements.get('toast-message').textContent, 'Rule update failed');
+  assert.equal(result.elements.get('toast').dataset.type, 'error');
+  await button.click();
+  assert.equal(button.disabled, false);
+  assert.deepEqual(background.navigations, [['create', { active: true, url: 'http://go/docs' }]]);
+  assert.deepEqual(result.permissionRequests, []);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+});
+
+test('post-save Test handles a disconnected worker or missing response and remains retryable', async () => {
+  const options = { sendMessage: async () => { throw new Error('Worker unavailable'); } };
+  const result = runManager({}, options);
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  const button = result.elements.get('test-shortcut');
+  await button.click();
+  assert.equal(result.elements.get('toast-message').textContent, 'Worker unavailable');
+  options.sendMessage = async () => undefined;
+  await button.click();
+  assert.equal(result.elements.get('toast-message').textContent, 'Could not test the shortcut.');
+  assert.equal(button.disabled, false);
+  assert.equal(result.elements.get('saved-actions').hidden, false);
+});
+
+test('dismissing a pending test does not resurrect its notification on failure', async () => {
+  let respond;
+  const result = runManager({}, {
+    sendMessage: () => new Promise(resolve => { respond = resolve; })
+  });
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  const pending = result.elements.get('test-shortcut').click();
+  await result.elements.get('toast-close').click();
+  respond({ ok: false, error: 'Routing unavailable' });
+  await pending;
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+  assert.equal(result.elements.get('saved-actions').hidden, true);
+  assert.equal(result.elements.get('test-shortcut').disabled, false);
+  assert.equal(result.elements.get('add-section').open, false);
+});
 
 test('background initializes through the Chromium extension API', async () => {
   const { listeners, updated } = runBackground();
@@ -537,7 +1077,8 @@ test('opening the editor reads the current URL and saves it', async () => {
   assert.deepEqual(result.getEntries(), {
     example: { url: sourceUrl }
   });
-  assert.equal(editorSection.open, true);
+  assert.equal(editorSection.open, false);
+  assert.equal(editorSection.hidden, false);
 });
 
 test('declining tab access leaves the editor usable and closing does not ask again', async () => {
@@ -555,6 +1096,11 @@ test('declining tab access leaves the editor usable and closing does not ask aga
   assert.deepEqual(result.tabQueries, []);
   assert.deepEqual(result.permissionRequests, [{ permissions: ['tabs'] }]);
 
+  await toggleEditor(result);
+  assert.equal(result.elements.get('add-section').open, false);
+  assert.deepEqual(result.permissionRequests, [{ permissions: ['tabs'] }]);
+  await toggleEditor(result);
+
   urlInput.value = 'https://example.com/manual';
   result.elements.get('go-link').value = 'manual';
   await result.elements.get('editor-form').dispatch('submit');
@@ -562,9 +1108,9 @@ test('declining tab access leaves the editor usable and closing does not ask aga
     manual: { url: 'https://example.com/manual' }
   });
 
-  await toggleEditor(result);
   assert.equal(result.elements.get('add-section').open, false);
-  assert.equal(result.permissionRequests.length, 1);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.permissionRequests.length, 2);
   assert.equal(urlInput.value, 'https://example.com/manual');
 });
 

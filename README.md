@@ -34,6 +34,10 @@ Linker's core workflow is simple: create a shortcut, then use `go/` to open it q
 
 Click the Linker toolbar icon to open the side-panel manager, then select **Add new shortcut**. Use a unique, URL-safe name and an HTTP or HTTPS destination. A destination containing `{*}` requires a default URL for use without a value. Linker checks these inputs and the browser's shortcut capacity before saving; to change an existing shortcut, edit it instead.
 
+If the destination is already saved, Linker shows the matching shortcuts with an **Edit** action. Matches preserve query strings, fragments, and path differences; a shortcut's default URL is labeled separately. These hints are advisory, so you can save another name for the same destination.
+
+After saving, the editor closes and **Add new shortcut** is immediately available again. A notification offers optional **Test shortcut** and **Edit** actions; dismiss it with × or Escape, or let it disappear after eight seconds. The timer pauses while you hover, focus its controls, or run a test. Test opens the actual `go/<shortcut>` address in a new tab after the browser's redirect rules are ready. For a parameterized shortcut, it tests the default destination. Opening the test tab does not verify that the destination website is available.
+
 ```mermaid
 flowchart TD
   accTitle: Save a Linker shortcut
@@ -71,7 +75,7 @@ flowchart TD
 
 Ordinary URLs, unknown shortcuts, and unsupported `go/` paths receive no redirect from Linker. For example, a shortcut without `{*}` does not accept an extra path such as `go/docs/123`.
 
-The manager lets you search, edit, delete, and open shortcuts in a new tab. Press Cmd/Ctrl+F outside the editor or a dialog to focus search. Matching shortcut names and destinations are highlighted; Enter opens the first result. Opening a shortcut containing `{*}` from the manager uses its default URL. In Chrome's address bar, type `go/` and press Space to see saved shortcut names matching the prefix you type; unknown or unsupported inputs do not open a tab.
+The manager displays shortcuts as a compact list, with search in the header and **More actions (⋮) → Help, Export, Import**. Click outside More actions or press Escape to close it. Press Cmd/Ctrl+F outside the editor or a dialog to focus search. Matching shortcut names and destinations are highlighted; Enter opens the first result. Opening a shortcut containing `{*}` from the manager uses its default URL. In Chrome's address bar, type `go/` and press Space to see saved shortcut names matching the prefix you type; unknown or unsupported inputs do not open a tab.
 
 You can export shortcuts as JSON and import them into Linker, including compatible [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj) exports. Shortcuts use Chrome's sync storage and can sync between browsers according to your Chrome Sync settings. The manager follows your browser's light or dark theme.
 

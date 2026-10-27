@@ -15,6 +15,8 @@ const REGEX_RULE_WARNING_THRESHOLD = Math.max(0, MAX_REGEX_RULES - 100);
 const state = {
   entries: {},
   editingShortcut: null,
+  savedResult: null,
+  testingShortcut: false,
   windowId: null,
   toastTimeout: null
 };
@@ -29,11 +31,17 @@ const elements = {
   formTitle: document.getElementById('form-title'),
   shortcutInput: document.getElementById('go-link'),
   urlInput: document.getElementById('full-link'),
+  destinationHints: document.getElementById('destination-hints'),
   variableBadge: document.getElementById('variable-badge'),
   fallbackField: document.getElementById('fallback-field'),
   fallbackInput: document.getElementById('fallback-link'),
   saveButton: document.getElementById('save'),
   cancelEditButton: document.getElementById('cancel-edit'),
+  savedActions: document.getElementById('saved-actions'),
+  testButton: document.getElementById('test-shortcut'),
+  savedEditButton: document.getElementById('edit-saved'),
+  moreButton: document.getElementById('more-button'),
+  actionsMenu: document.getElementById('actions-menu'),
   helpButton: document.getElementById('btn-help'),
   importButton: document.getElementById('btn-import'),
   fileInput: document.getElementById('import-file'),
@@ -44,6 +52,7 @@ const elements = {
   toastClose: document.getElementById('toast-close'),
   confirmModal: document.getElementById('confirm-modal'),
   confirmTitle: document.getElementById('confirm-title'),
+  confirmDescription: document.getElementById('confirm-description'),
   confirmOk: document.getElementById('confirm-ok'),
   confirmIcon: document.getElementById('confirm-icon'),
   confirmLabel: document.getElementById('confirm-label'),
@@ -80,6 +89,7 @@ async function prefillActiveTab() {
     if (!elements.addSection.open || state.editingShortcut) return;
     elements.urlInput.value = isValidTargetUrl(tab?.url) ? tab.url : '';
     updateVariableFields();
+    renderDestinationHints();
   } catch (error) {
     console.error('Error reading the current tab:', error);
   }
@@ -90,8 +100,21 @@ function focusSearch() {
   elements.search.select();
 }
 
+async function prefillNewShortcut() {
+  elements.urlInput.value = '';
+  updateVariableFields();
+  renderDestinationHints();
+  try {
+    if (await chrome.permissions.request({ permissions: ['tabs'] })) await prefillActiveTab();
+  } catch (error) {
+    console.error('Error requesting tab access:', error);
+  }
+}
+
 function setupEventListeners() {
   document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !elements.confirmModal.open
+      && elements.toast.matches(':popover-open')) hideToast();
     if (event.key.toLowerCase() !== 'f' || !(event.metaKey || event.ctrlKey)
       || event.altKey || event.shiftKey || elements.confirmModal.open) return;
     const target = event.target;
@@ -107,22 +130,36 @@ function setupEventListeners() {
     event.preventDefault();
     return saveShortcut();
   });
-  elements.urlInput.addEventListener('input', updateVariableFields);
+  [elements.urlInput, elements.shortcutInput, elements.fallbackInput].forEach(input => {
+    input.addEventListener('input', () => {
+      clearSavedResult();
+      updateVariableFields();
+      renderDestinationHints();
+    });
+  });
   elements.addSection.querySelector('summary').addEventListener('click', async () => {
     if (elements.addSection.open || state.editingShortcut) return;
-    elements.urlInput.value = '';
-    updateVariableFields();
-    try {
-      if (await chrome.permissions.request({ permissions: ['tabs'] })) await prefillActiveTab();
-    } catch (error) {
-      console.error('Error requesting tab access:', error);
-    }
+    clearSavedResult();
+    await prefillNewShortcut();
   });
   elements.cancelEditButton.addEventListener('click', () => {
     resetForm();
     elements.addSection.open = false;
     elements.addSection.querySelector('summary').focus();
   });
+  elements.testButton.addEventListener('click', testSavedShortcut);
+  elements.savedEditButton.addEventListener('click', () => {
+    if (state.savedResult) startEditing(state.savedResult.shortcut);
+  });
+  ['pointerenter', 'pointerleave', 'focusin'].forEach(type => {
+    elements.toast.addEventListener(type, scheduleToastDismissal);
+  });
+  elements.toast.addEventListener('focusout', () => setTimeout(scheduleToastDismissal, 0));
+  // Close the popover before its action opens a tab, file picker, or dialog.
+  elements.actionsMenu.addEventListener('click', () => {
+    elements.actionsMenu.hidePopover();
+    elements.moreButton.focus();
+  }, { capture: true });
   elements.helpButton.addEventListener('click', openHelp);
   elements.importButton.addEventListener('click', () => elements.fileInput.click());
   elements.fileInput.addEventListener('change', importShortcuts);
@@ -190,12 +227,48 @@ async function loadEntries() {
     state.entries = Object.fromEntries(
       Object.entries(stored).filter(([, value]) => isStoredEntry(value))
     );
+    const saved = state.savedResult;
+    const current = saved && Object.hasOwn(state.entries, saved.shortcut)
+      ? state.entries[saved.shortcut] : null;
+    if (saved && (!current || current.url !== saved.entry.url
+      || current.fallbackUrl !== saved.entry.fallbackUrl)) hideToast();
     renderEntries();
     updateCapacityWarning();
+    renderDestinationHints();
   } catch (error) {
     console.error('Error loading shortcuts:', error);
     showToast('Could not load your shortcuts.', 'error');
   }
+}
+
+function renderDestinationHints() {
+  elements.destinationHints.replaceChildren();
+  elements.destinationHints.hidden = true;
+  if (state.savedResult || !isValidTargetUrl(elements.urlInput.value)) return;
+
+  const destination = new URL(elements.urlInput.value).href;
+  Object.entries(state.entries)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .forEach(([shortcut, value]) => {
+      if (shortcut === state.editingShortcut) return;
+      const exact = new URL(value.url).href === destination;
+      const defaultMatch = hasVariable(value.url)
+        && new URL(value.fallbackUrl).href === destination;
+      if (!exact && !defaultMatch) return;
+
+      const row = document.createElement('li');
+      const label = document.createElement('span');
+      const edit = document.createElement('button');
+      label.textContent = `${exact ? 'Already saved as' : 'Default destination for'} go/${shortcut}`;
+      edit.type = 'button';
+      edit.textContent = 'Edit';
+      edit.setAttribute('aria-label', `Edit go/${shortcut}`);
+      edit.addEventListener('click', () => startEditing(shortcut));
+      row.appendChild(label);
+      row.appendChild(edit);
+      elements.destinationHints.appendChild(row);
+    });
+  elements.destinationHints.hidden = elements.destinationHints.children.length === 0;
 }
 
 function renderEntries() {
@@ -282,6 +355,7 @@ function startEditing(shortcut) {
   const entry = state.entries[shortcut];
   if (!entry) return;
 
+  clearSavedResult();
   state.editingShortcut = shortcut;
   elements.shortcutInput.value = shortcut;
   elements.urlInput.value = entry.url;
@@ -289,16 +363,47 @@ function startEditing(shortcut) {
   elements.formTitle.textContent = `Edit go/${shortcut}`;
   elements.saveButton.textContent = 'Save changes';
   updateVariableFields();
+  renderDestinationHints();
   elements.addSection.open = true;
   elements.urlInput.focus();
 }
 
 function resetForm() {
+  clearSavedResult();
+  elements.destinationHints.replaceChildren();
+  elements.destinationHints.hidden = true;
   state.editingShortcut = null;
   elements.shortcutInput.value = '';
   elements.fallbackInput.value = '';
   elements.formTitle.textContent = 'Add new shortcut';
   elements.saveButton.textContent = 'Save shortcut';
+}
+
+function clearSavedResult() {
+  if (state.savedResult) hideToast();
+}
+
+async function testSavedShortcut() {
+  if (!state.savedResult || state.testingShortcut) return;
+  const saved = state.savedResult;
+  state.testingShortcut = true;
+  elements.testButton.disabled = true;
+  scheduleToastDismissal();
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'test-shortcut', shortcut: saved.shortcut
+    });
+    if (!response?.ok) throw new Error(response?.error || 'Could not test the shortcut.');
+    if (state.savedResult === saved) hideToast();
+  } catch (error) {
+    if (state.savedResult === saved) {
+      showToast(error.message || 'Could not test the shortcut.', 'error', saved);
+    }
+  } finally {
+    state.testingShortcut = false;
+    elements.testButton.disabled = false;
+    scheduleToastDismissal();
+  }
 }
 
 function updateVariableFields() {
@@ -361,7 +466,9 @@ async function saveShortcut() {
     renderEntries();
     updateCapacityWarning();
     resetForm();
-    showToast(`${originalShortcut ? 'Updated' : 'Saved'} go/${shortcut}.`, 'success');
+    elements.addSection.open = false;
+    focusSearch();
+    showToast(`${originalShortcut ? 'Updated' : 'Saved'} go/${shortcut}.`, 'success', { shortcut, entry });
   } catch (error) {
     console.error('Error saving shortcut:', error);
     await loadEntries();
@@ -517,28 +624,46 @@ async function importShortcuts(event) {
   }
 }
 
-function showToast(message, type = 'success') {
+function showToast(message, type = 'success', saved = null) {
+  if (!saved && elements.savedActions.contains(document.activeElement)) focusSearch();
+  state.savedResult = saved;
+  elements.savedActions.hidden = !saved;
+  if (saved) {
+    elements.testButton.setAttribute('aria-label', `Test shortcut go/${saved.shortcut}`);
+    elements.savedEditButton.setAttribute('aria-label', `Edit go/${saved.shortcut}`);
+  }
   elements.toastMessage.textContent = message;
   elements.toast.dataset.type = type;
-  elements.toast.classList.remove('hidden');
+  elements.toast.showPopover();
+  scheduleToastDismissal();
+}
 
-  if (state.toastTimeout) clearTimeout(state.toastTimeout);
-  state.toastTimeout = setTimeout(hideToast, 3500);
+function scheduleToastDismissal() {
+  clearTimeout(state.toastTimeout);
+  state.toastTimeout = null;
+  if (!elements.toast.matches(':popover-open') || state.testingShortcut
+    || elements.toast.matches(':hover, :focus-within')) return;
+  state.toastTimeout = setTimeout(hideToast, state.savedResult ? 8000 : 3500);
 }
 
 function hideToast() {
-  elements.toast.classList.add('hidden');
-  if (state.toastTimeout) clearTimeout(state.toastTimeout);
+  const restoreFocus = elements.toast.contains(document.activeElement);
+  elements.toast.hidePopover();
+  clearTimeout(state.toastTimeout);
   state.toastTimeout = null;
+  state.savedResult = null;
+  elements.savedActions.hidden = true;
+  if (restoreFocus) focusSearch();
 }
 
 function showConfirmModal(message, { confirmLabel = 'Delete', danger = true } = {}) {
   return new Promise(resolve => {
     const previousFocus = document.activeElement;
-    elements.confirmTitle.textContent = message;
+    elements.confirmTitle.textContent = danger ? 'Delete shortcut?' : 'Replace shortcuts?';
+    elements.confirmDescription.textContent = message;
     elements.confirmLabel.textContent = confirmLabel;
-    elements.confirmIcon.hidden = !danger;
-    elements.confirmOk.className = danger ? 'danger-button' : 'primary-button';
+    elements.confirmIcon.toggleAttribute('hidden', !danger);
+    elements.confirmOk.className = danger ? 'danger filled' : 'primary filled';
     elements.confirmModal.returnValue = '';
 
     const finish = result => {
