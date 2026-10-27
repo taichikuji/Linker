@@ -32,6 +32,7 @@ function runBackground(options = {}) {
   const runtimeMessages = [];
   const openedPanels = [];
   const navigations = [];
+  const appliedUpdates = [];
   const errors = [];
   let ruleUpdateCalls = 0;
   let resolveUpdate;
@@ -45,13 +46,16 @@ function runBackground(options = {}) {
       getDynamicRules: async () => [{ id: 99 }],
       updateDynamicRules: async details => {
         ruleUpdateCalls += 1;
+        await options.beforeRuleUpdate?.(clone(details), ruleUpdateCalls);
         if (ruleUpdateCalls === options.failRuleUpdateAt) {
           throw new Error('Rule update failed');
         }
+        appliedUpdates.push(clone(details));
         resolveUpdate(clone(details));
       }
     },
     runtime: {
+      onMessage: eventSlot(listeners, 'runtimeMessage'),
       sendMessage: async message => runtimeMessages.push(clone(message))
     },
     action: {
@@ -67,11 +71,14 @@ function runBackground(options = {}) {
     },
     tabs: {
       update: async details => navigations.push(['update', clone(details)]),
-      create: async details => navigations.push(['create', clone(details)])
+      create: async details => {
+        if (options.failTabCreate) throw new Error('Tab could not be opened');
+        navigations.push(['create', clone(details)]);
+      }
     },
     storage: {
       sync: {
-        get: async () => options.entries ?? ({
+        get: async () => options.getEntries?.() ?? options.entries ?? ({
           gh: { url: 'https://github.com/' },
           issue: {
             url: 'https://github.com/taichikuji/Linker/issues/{*}',
@@ -107,6 +114,7 @@ function runBackground(options = {}) {
     errors,
     openedPanels,
     navigations,
+    appliedUpdates,
     getRuleUpdateCalls: () => ruleUpdateCalls
   };
 }
@@ -117,6 +125,7 @@ function runManager(initialEntries = {}, options = {}) {
   const tabQueries = [];
   const permissionRequests = [];
   const openedTabs = [];
+  const runtimeMessages = [];
   let entries = clone(initialEntries);
 
   const document = {
@@ -154,6 +163,7 @@ function runManager(initialEntries = {}, options = {}) {
       dataset: {},
       files: [],
       hidden: false,
+      disabled: false,
       value: '',
       addEventListener(type, listener) {
         eventListeners[type] = listener;
@@ -204,6 +214,8 @@ function runManager(initialEntries = {}, options = {}) {
 
   const template = document.getElementById('shortcut-template');
   template.content = { firstElementChild: createElement() };
+  document.getElementById('destination-hints').hidden = true;
+  document.getElementById('saved-result').hidden = true;
 
   const api = {
     declarativeNetRequest: {
@@ -217,6 +229,10 @@ function runManager(initialEntries = {}, options = {}) {
     },
     runtime: {
       getURL: path => `chrome-extension://linker/${path}`,
+      sendMessage: async message => {
+        runtimeMessages.push(clone(message));
+        return options.sendMessage ? options.sendMessage(clone(message)) : { ok: true };
+      },
       onMessage: eventSlot(listeners, 'runtimeMessage')
     },
     storage: {
@@ -261,8 +277,17 @@ function runManager(initialEntries = {}, options = {}) {
     tabQueries,
     permissionRequests,
     openedTabs,
-    getEntries: () => clone(entries)
+    runtimeMessages,
+    getEntries: () => clone(entries),
+    setEntries: value => { entries = clone(value); }
   };
+}
+
+function sendBackgroundMessage(result, message) {
+  return new Promise(resolve => {
+    const keepOpen = result.listeners.runtimeMessage(message, {}, response => resolve(clone(response)));
+    assert.equal(keepOpen, true);
+  });
 }
 
 async function toggleEditor(result) {
@@ -271,6 +296,295 @@ async function toggleEditor(result) {
   section.open = !section.open;
   await clicking;
 }
+
+async function saveManagerShortcut(result, shortcut, url = 'https://example.com/docs') {
+  if (Object.hasOwn(result.getEntries(), shortcut)) {
+    vm.runInContext(`startEditing(${JSON.stringify(shortcut)})`, result.context);
+  }
+  result.elements.get('go-link').value = shortcut;
+  result.elements.get('full-link').value = url;
+  await result.elements.get('full-link').dispatch('input');
+  await result.elements.get('editor-form').dispatch('submit');
+}
+
+test('destination hints match parsed URLs while preserving paths, queries, and fragments', async () => {
+  const destination = 'https://example.com/docs?view=all#top';
+  const result = runManager({
+    zulu: { url: destination },
+    alpha: { url: 'https://EXAMPLE.com:443/docs?view=all#top' }
+  });
+  await vm.runInContext('initialize()', result.context);
+  const input = result.elements.get('full-link');
+  const hints = result.elements.get('destination-hints');
+
+  for (const url of [destination, ' https://EXAMPLE.com:443/docs?view=all#top ']) {
+    input.value = url;
+    await input.dispatch('input');
+    assert.equal(hints.hidden, false);
+    assert.deepEqual(hints.children.map(row => row.children[0].textContent), [
+      'Already saved as go/alpha', 'Already saved as go/zulu'
+    ]);
+    assert.equal(input.value, url);
+  }
+  for (const url of [
+    '', 'not a URL', 'javascript:alert(1)', 'http://example.com/docs?view=all#top',
+    'https://example.com/docs/?view=all#top', 'https://example.com/Docs?view=all#top',
+    'https://example.com/docs?view=other#top', 'https://example.com/docs?view=all#other',
+    'https://example.com/docs?view=all', 'https://example.com/elsewhere'
+  ]) {
+    input.value = url;
+    await input.dispatch('input');
+    assert.equal(hints.hidden, true, url);
+    assert.equal(hints.children.length, 0, url);
+  }
+  assert.deepEqual(result.getEntries(), {
+    zulu: { url: destination }, alpha: { url: 'https://EXAMPLE.com:443/docs?view=all#top' }
+  });
+});
+
+test('destination hints distinguish literal templates and default destinations and render text safely', async () => {
+  const result = runManager({
+    issue: { url: 'https://example.com/issues/{*}', fallbackUrl: 'https://example.com/issues' },
+    'a<b&c': { url: 'https://example.com/issues' }
+  });
+  await vm.runInContext('initialize()', result.context);
+  const input = result.elements.get('full-link');
+  const hints = result.elements.get('destination-hints');
+
+  input.value = 'https://example.com/issues';
+  await input.dispatch('input');
+  assert.deepEqual(hints.children.map(row => row.children[0].textContent), [
+    'Already saved as go/a<b&c', 'Default destination for go/issue'
+  ]);
+  assert.equal(hints.children[0].children[0].tagName, 'SPAN');
+  assert.equal(hints.children[0].children[0].children.length, 0);
+  input.value = 'https://example.com/issues/{*}';
+  await input.dispatch('input');
+  assert.deepEqual(hints.children.map(row => row.children[0].textContent), ['Already saved as go/issue']);
+  input.value = 'https://example.com/issues/123';
+  await input.dispatch('input');
+  assert.equal(hints.hidden, true);
+});
+
+test('destination hints edit existing shortcuts, exclude the current edit, and allow another name', async () => {
+  const result = runManager({ docs: { url: 'https://example.com/docs' } });
+  await vm.runInContext('initialize()', result.context);
+  const input = result.elements.get('full-link');
+  const hints = result.elements.get('destination-hints');
+  input.value = 'https://example.com/docs';
+  await input.dispatch('input');
+  const edit = hints.children[0].children[1];
+  assert.equal(edit.type, 'button');
+  assert.equal(edit['aria-label'], 'Edit go/docs');
+  await edit.click();
+  assert.equal(result.elements.get('form-title').textContent, 'Edit go/docs');
+  assert.equal(result.context.document.activeElement, input);
+  assert.equal(hints.hidden, true);
+
+  await result.elements.get('cancel-edit').dispatch('click');
+  await saveManagerShortcut(result, 'another');
+  assert.deepEqual(result.getEntries(), {
+    docs: { url: 'https://example.com/docs' }, another: { url: 'https://example.com/docs' }
+  });
+});
+
+test('destination hints refresh after prefill, sync, and starting an edit without changing the draft', async () => {
+  const result = runManager({ docs: { url: 'https://example.com/docs' } }, {
+    activeTab: { url: 'https://example.com/docs' }
+  });
+  await vm.runInContext('initialize()', result.context);
+  await toggleEditor(result);
+  const hints = result.elements.get('destination-hints');
+  assert.equal(hints.children[0].children[0].textContent, 'Already saved as go/docs');
+  result.setEntries({
+    replacement: { url: 'https://example.com/docs' },
+    elsewhere: { url: 'https://example.com/other' }
+  });
+  result.listeners.storageChanged({ docs: { newValue: null } }, 'sync');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(hints.children[0].children[0].textContent, 'Already saved as go/replacement');
+  assert.equal(result.elements.get('full-link').value, 'https://example.com/docs');
+  vm.runInContext("startEditing('elsewhere')", result.context);
+  assert.equal(hints.hidden, true);
+});
+
+test('successful saves show persistent Test and Edit actions without a success toast', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  assert.equal(result.elements.get('saved-result').hidden, false);
+  assert.equal(result.elements.get('saved-message').textContent, 'Saved go/docs.');
+  assert.equal(result.elements.get('toast').classList.contains('hidden'), true);
+  assert.equal(result.elements.get('go-link').value, '');
+  assert.equal(result.elements.get('full-link').value, 'https://example.com/docs');
+  assert.equal(result.elements.get('destination-hints').hidden, true);
+
+  await result.elements.get('search').dispatch('input');
+  assert.equal(result.elements.get('saved-result').hidden, false);
+  await result.elements.get('edit-saved').click();
+  assert.equal(result.elements.get('saved-result').hidden, true);
+  assert.equal(result.elements.get('go-link').value, 'docs');
+  await result.elements.get('editor-form').dispatch('submit');
+  assert.equal(result.elements.get('saved-message').textContent, 'Updated go/docs.');
+
+  for (const field of ['full-link', 'go-link', 'fallback-link']) {
+    await result.elements.get(field).dispatch('input');
+    assert.equal(result.elements.get('saved-result').hidden, true, field);
+    assert.equal(result.elements.get('destination-hints').hidden, false, field);
+    await saveManagerShortcut(result, `next-${field}`);
+  }
+  await result.elements.get('cancel-edit').dispatch('click');
+  assert.equal(result.elements.get('saved-result').hidden, true);
+  assert.equal(result.elements.get('destination-hints').hidden, true);
+});
+
+test('saved results clear only when their shortcut changes through sync or another edit begins', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  for (const changedEntries of [
+    { docs: { url: 'https://example.com/changed' } },
+    {},
+    { renamed: { url: 'https://example.com/docs' } },
+    { docs: { url: 'https://example.com/issues/{*}', fallbackUrl: 'https://example.com/issues' } }
+  ]) {
+    await saveManagerShortcut(result, 'docs');
+    result.setEntries({ ...result.getEntries(), unrelated: { url: 'https://example.com/other' } });
+    result.listeners.storageChanged({ unrelated: {} }, 'sync');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(result.elements.get('saved-result').hidden, false);
+    result.setEntries(changedEntries);
+    result.listeners.storageChanged({ docs: {} }, 'sync');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(result.elements.get('saved-result').hidden, true);
+  }
+  await saveManagerShortcut(result, 'another');
+  vm.runInContext("startEditing('docs')", result.context);
+  assert.equal(result.elements.get('saved-result').hidden, true);
+});
+
+test('shortcut tests wait for applied rules and open direct and default go routes', async () => {
+  let release;
+  const paused = new Promise(resolve => { release = resolve; });
+  const result = runBackground({ beforeRuleUpdate: async (details, call) => {
+    if (call === 2) await paused;
+  } });
+  await result.updated;
+  const response = sendBackgroundMessage(result, { type: 'test-shortcut', shortcut: 'gh' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(result.navigations, []);
+  release();
+  assert.deepEqual(await response, { ok: true });
+  assert.deepEqual(await sendBackgroundMessage(result, { type: 'test-shortcut', shortcut: 'issue' }), { ok: true });
+  assert.deepEqual(result.navigations, [
+    ['create', { active: true, url: 'http://go/gh' }],
+    ['create', { active: true, url: 'http://go/issue' }]
+  ]);
+  const fallback = result.appliedUpdates.at(-1).addRules.find(rule =>
+    new RegExp(rule.condition.regexFilter).test('http://go/issue'));
+  assert.equal(fallback.action.redirect.url, 'https://github.com/taichikuji/Linker/issues');
+});
+
+test('shortcut tests reject malformed, unavailable, and invalid stored shortcuts without navigation', async () => {
+  const result = runBackground({ entries: {
+    valid: { url: 'https://example.com' },
+    unsafe: { url: 'javascript:alert(1)' },
+    noDefault: { url: 'https://example.com/{*}' },
+    'bad/path': { url: 'https://example.com' }
+  } });
+  await result.updated;
+  for (const shortcut of [
+    undefined, null, 42, {}, [], '', 'a'.repeat(101), 'bad/path', '.', '..',
+    'bad?query', 'bad#fragment', 'bad%20path', 'bad\\path', 'bad path',
+    'bad\tpath', 'bad&path', 'é', 'missing', 'unsafe', 'noDefault', 'constructor'
+  ]) {
+    const response = await sendBackgroundMessage(result, { type: 'test-shortcut', shortcut });
+    assert.equal(response.ok, false, String(shortcut));
+    assert.equal(typeof response.error, 'string');
+  }
+  assert.deepEqual(result.navigations, []);
+  assert.equal(result.listeners.runtimeMessage({ type: 'unrelated' }, {}, () => {
+    assert.fail('Unrelated messages must not receive a test response');
+  }), undefined);
+});
+
+test('shortcut tests use the queued rebuild snapshot when a shortcut disappears before installation', async () => {
+  let release;
+  const paused = new Promise(resolve => { release = resolve; });
+  const options = {
+    entries: { docs: { url: 'https://example.com' } },
+    beforeRuleUpdate: async (details, call) => { if (call === 1) await paused; }
+  };
+  const result = runBackground(options);
+  const response = sendBackgroundMessage(result, { type: 'test-shortcut', shortcut: 'docs' });
+  options.entries = {};
+  release();
+  assert.equal((await response).ok, false);
+  assert.deepEqual(result.navigations, []);
+});
+
+test('shortcut tests report routing and tab failures and recover on retry', async () => {
+  const options = { failRuleUpdateAt: 2, failTabCreate: true };
+  const result = runBackground(options);
+  await result.updated;
+  const message = { type: 'test-shortcut', shortcut: 'gh' };
+  assert.deepEqual(await sendBackgroundMessage(result, message), { ok: false, error: 'Rule update failed' });
+  assert.deepEqual(await sendBackgroundMessage(result, message), { ok: false, error: 'Tab could not be opened' });
+  assert.deepEqual(result.navigations, []);
+  options.failTabCreate = false;
+  assert.deepEqual(await sendBackgroundMessage(result, message), { ok: true });
+  assert.deepEqual(result.navigations, [['create', { active: true, url: 'http://go/gh' }]]);
+});
+
+test('post-save Test waits, prevents double clicks, preserves failures, and retries without tab permissions', async () => {
+  let background;
+  let release;
+  const paused = new Promise(resolve => { release = resolve; });
+  const result = runManager({}, {
+    tabsGranted: false,
+    sendMessage: message => sendBackgroundMessage(background, message)
+  });
+  background = runBackground({
+    getEntries: result.getEntries,
+    failRuleUpdateAt: 2,
+    beforeRuleUpdate: async (details, call) => { if (call === 2) await paused; }
+  });
+  await background.updated;
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  const button = result.elements.get('test-shortcut');
+  const pending = button.click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(button.disabled, true);
+  await button.click();
+  assert.equal(result.runtimeMessages.length, 1);
+  assert.deepEqual(background.navigations, []);
+  release();
+  await pending;
+  assert.equal(button.disabled, false);
+  assert.equal(result.elements.get('saved-result').hidden, false);
+  assert.equal(result.elements.get('toast-message').textContent, 'Rule update failed');
+  assert.equal(result.elements.get('toast').dataset.type, 'error');
+  await button.click();
+  assert.equal(button.disabled, false);
+  assert.deepEqual(background.navigations, [['create', { active: true, url: 'http://go/docs' }]]);
+  assert.deepEqual(result.permissionRequests, []);
+  assert.equal(result.elements.get('saved-message').textContent, 'Saved go/docs.');
+});
+
+test('post-save Test handles a disconnected worker or missing response and remains retryable', async () => {
+  const options = { sendMessage: async () => { throw new Error('Worker unavailable'); } };
+  const result = runManager({}, options);
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'docs');
+  const button = result.elements.get('test-shortcut');
+  await button.click();
+  assert.equal(result.elements.get('toast-message').textContent, 'Worker unavailable');
+  options.sendMessage = async () => undefined;
+  await button.click();
+  assert.equal(result.elements.get('toast-message').textContent, 'Could not test the shortcut.');
+  assert.equal(button.disabled, false);
+  assert.equal(result.elements.get('saved-result').hidden, false);
+});
 
 test('background initializes through the Chromium extension API', async () => {
   const { listeners, updated } = runBackground();

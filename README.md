@@ -34,6 +34,10 @@ Linker's core workflow is simple: create a shortcut, then use `go/` to open it q
 
 Click the Linker toolbar icon to open the side-panel manager, then select **Add new shortcut**. Use a unique, URL-safe name and an HTTP or HTTPS destination. A destination containing `{*}` requires a default URL for use without a value. Linker checks these inputs and the browser's shortcut capacity before saving; to change an existing shortcut, edit it instead.
 
+If the destination is already saved, Linker shows the matching shortcuts with an **Edit** action. Matches preserve query strings, fragments, and path differences; a shortcut's default URL is labeled separately. These hints are advisory, so you can save another name for the same destination.
+
+After saving, an inline confirmation offers **Test shortcut** and **Edit**. Test opens the actual `go/<shortcut>` address in a new tab after the browser's redirect rules are ready. For a parameterized shortcut, it tests the default destination. Opening the test tab does not verify that the destination website is available. The confirmation stays until you change or cancel the editor, start another edit, or the saved shortcut changes through sync.
+
 ```mermaid
 flowchart TD
   accTitle: Save a Linker shortcut

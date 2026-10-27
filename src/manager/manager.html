@@ -88,8 +88,9 @@
             <label for="full-link">Destination URL</label>
             <span id="variable-badge" class="variable-badge" hidden>Variable</span>
           </div>
-          <input id="full-link" name="url" type="url" required placeholder="https://example.com/items/{*}" spellcheck="false" aria-describedby="destination-hint">
+          <input id="full-link" name="url" type="url" required placeholder="https://example.com/items/{*}" spellcheck="false" aria-describedby="destination-hint destination-hints">
           <p id="destination-hint" class="field-hint">Add <code>{*}</code> where the trailing go link value should appear.</p>
+          <ul id="destination-hints" class="destination-hints" aria-label="Saved shortcuts for this destination" hidden></ul>
 
           <div id="fallback-field" class="conditional-field" hidden>
             <label for="fallback-link">Default go link to</label>
@@ -107,6 +108,15 @@
           <div class="form-actions">
             <button id="cancel-edit" class="secondary-button" type="button">Cancel</button>
             <button id="save" class="primary-button" type="submit">Save shortcut</button>
+          </div>
+          <div role="status" aria-live="polite" aria-atomic="true">
+            <div id="saved-result" class="saved-result" hidden>
+              <p id="saved-message"></p>
+              <div class="saved-actions">
+                <button id="test-shortcut" class="primary-button" type="button">Test shortcut</button>
+                <button id="edit-saved" class="secondary-button" type="button">Edit</button>
+              </div>
+            </div>
           </div>
         </form>
       </details>

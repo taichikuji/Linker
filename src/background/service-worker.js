@@ -131,6 +131,7 @@ async function updateRedirectRules() {
     removeRuleIds: oldRules.map(rule => rule.id),
     addRules: newRules
   });
+  return entries;
 }
 
 /**
@@ -143,6 +144,34 @@ function scheduleRuleUpdate() {
   });
   return next;
 }
+
+async function testShortcut(shortcut) {
+  if (typeof shortcut !== 'string' || !shortcut || shortcut.length > 100
+    || /[\s/?#&%\\]/u.test(shortcut)) {
+    throw new Error('Cannot test an invalid shortcut.');
+  }
+
+  const url = `http://go/${shortcut}`;
+  if (new URL(url).pathname !== `/${shortcut}`) {
+    throw new Error('Cannot test an invalid shortcut.');
+  }
+
+  // Use the applied snapshot, rather than racing storage against rule installation.
+  const appliedEntries = await scheduleRuleUpdate();
+  if (!appliedEntries.some(([name]) => name === shortcut)) {
+    throw new Error('This shortcut is no longer available.');
+  }
+  await chrome.tabs.create({ active: true, url });
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type !== 'test-shortcut') return;
+  testShortcut(message.shortcut).then(
+    () => sendResponse({ ok: true }),
+    error => sendResponse({ ok: false, error: error.message || 'Could not test the shortcut.' })
+  );
+  return true;
+});
 
 async function openSidePanel(sourceTab) {
   try {
