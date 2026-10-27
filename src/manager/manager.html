@@ -21,7 +21,13 @@
       <path d="M19 15v2a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-2M12 15V5m0 0 2 2m-2-2-2 2" />
     </symbol>
     <symbol id="icon-search" viewBox="2 2 20 20">
-      <path d="m20 20-4.35-4.35M18 11a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4-4" />
+    </symbol>
+    <symbol id="icon-more" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <circle cx="12" cy="6" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="12" cy="18" r="2" />
     </symbol>
     <symbol id="icon-external" viewBox="3 3 18 18">
       <path d="M11 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.75M19 5h-4m4 0v4m0-4L9 15" />
@@ -52,24 +58,25 @@
         </div>
       </div>
 
+      <search class="search-area" aria-label="Search shortcuts">
+        <label class="visually-hidden" for="search">Search shortcut names and destinations</label>
+        <svg class="search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+        <input id="search" class="search-input" type="search" autocomplete="off" placeholder="Search shortcuts…">
+      </search>
+
       <div class="header-actions" role="group" aria-label="Manager actions">
-        <button id="btn-help" class="icon-button" type="button" title="How to use Linker" aria-label="How to use Linker"><svg class="ui-icon" aria-hidden="true"><use href="#icon-help"></use></svg></button>
-        <button id="btn-export" class="icon-button" type="button" title="Export" aria-label="Export"><svg class="ui-icon" aria-hidden="true"><use href="#icon-export"></use></svg></button>
-        <button id="btn-import" class="icon-button" type="button" title="Import" aria-label="Import"><svg class="ui-icon" aria-hidden="true"><use href="#icon-import"></use></svg></button>
-        <input id="import-file" class="visually-hidden" type="file" accept=".json,application/json">
+        <button id="more-button" class="icon-button" type="button" popovertarget="actions-menu" title="More actions" aria-label="More actions"><svg class="ui-icon" aria-hidden="true"><use href="#icon-more"></use></svg></button>
+        <div id="actions-menu" class="actions-menu" popover="auto" role="group" aria-label="More shortcut actions">
+          <button id="btn-help" class="actions-menu-item" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-help"></use></svg>Help</button>
+          <button id="btn-export" class="actions-menu-item" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-export"></use></svg>Export</button>
+          <button id="btn-import" class="actions-menu-item" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-import"></use></svg>Import</button>
+        </div>
       </div>
     </header>
+    <input id="import-file" type="file" accept=".json,application/json" hidden aria-label="Import shortcuts">
 
     <main class="manager-grid">
       <section class="shortcut-panel" aria-label="Saved shortcuts">
-        <search aria-label="Search shortcuts">
-          <label class="search-field" for="search">
-            <span class="visually-hidden">Search shortcuts</span>
-            <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
-            <input id="search" type="search" autocomplete="off" placeholder="Search shortcuts">
-          </label>
-        </search>
-
         <p id="capacity-warning" class="capacity-warning" role="status" aria-live="polite" aria-atomic="true" hidden></p>
 
         <div class="shortcuts">
@@ -78,62 +85,66 @@
         </div>
       </section>
 
-      <details id="add-section" class="editor-panel">
-        <summary class="panel-summary">
-          <span id="form-title" class="summary-title">Add new shortcut</span>
-          <svg class="ui-icon disclosure-icon" aria-hidden="true"><use href="#icon-down"></use></svg>
-        </summary>
-        <form id="editor-form" class="add-form">
-          <div class="field-label">
-            <label for="full-link">Destination URL</label>
-            <span id="variable-badge" class="variable-badge" hidden>Variable</span>
-          </div>
-          <input id="full-link" name="url" type="url" required placeholder="https://example.com/items/{*}" spellcheck="false" aria-describedby="destination-hint destination-hints">
-          <p id="destination-hint" class="field-hint">Add <code>{*}</code> where the trailing go link value should appear.</p>
-          <ul id="destination-hints" class="destination-hints" aria-label="Saved shortcuts for this destination" hidden></ul>
+      <section class="editor-panel" aria-label="Shortcut editor">
+        <details id="add-section">
+          <summary class="panel-summary">
+            <span id="form-title" class="summary-title">Add new shortcut</span>
+            <svg class="ui-icon disclosure-icon" aria-hidden="true"><use href="#icon-down"></use></svg>
+          </summary>
+          <form id="editor-form" class="add-form">
+            <div class="field-label">
+              <label for="full-link">Destination URL</label>
+              <span id="variable-badge" class="variable-badge" hidden>Variable</span>
+            </div>
+            <input id="full-link" class="edit-input" name="url" type="url" required placeholder="https://example.com/items/{*}" spellcheck="false" aria-describedby="destination-hint destination-hints">
+            <p id="destination-hint" class="field-hint">Add <code>{*}</code> where the trailing go link value should appear.</p>
+            <ul id="destination-hints" class="destination-hints" aria-label="Saved shortcuts for this destination" hidden></ul>
 
-          <div id="fallback-field" class="conditional-field" hidden>
-            <label for="fallback-link">Default go link to</label>
-            <input id="fallback-link" name="fallback-url" type="url" placeholder="https://example.com/" spellcheck="false" aria-describedby="fallback-hint">
-            <p id="fallback-hint" class="field-hint">Used when no variable value is provided.</p>
-          </div>
+            <div id="fallback-field" class="conditional-field" hidden>
+              <label for="fallback-link">Default go link to</label>
+              <input id="fallback-link" class="edit-input" name="fallback-url" type="url" placeholder="https://example.com/" spellcheck="false" aria-describedby="fallback-hint">
+              <p id="fallback-hint" class="field-hint">Used when no variable value is provided.</p>
+            </div>
 
-          <label for="go-link">Shortcut</label>
-          <div class="shortcut-field">
-            <span>go/</span>
-            <input id="go-link" name="shortcut" type="text" required maxlength="100" autocomplete="off" placeholder="shortcut" aria-describedby="shortcut-hint">
-          </div>
-          <p id="shortcut-hint" class="field-hint">Use a URL-safe name without spaces or accents.</p>
+            <label for="go-link">Shortcut</label>
+            <div class="shortcut-field">
+              <span>go/</span>
+              <input id="go-link" name="shortcut" type="text" required maxlength="100" autocomplete="off" placeholder="shortcut" aria-describedby="shortcut-hint">
+            </div>
+            <p id="shortcut-hint" class="field-hint">Use a URL-safe name without spaces or accents.</p>
 
-          <div class="form-actions">
-            <button id="cancel-edit" class="secondary-button" type="button">Cancel</button>
-            <button id="save" class="primary-button" type="submit">Save shortcut</button>
-          </div>
-          <div role="status" aria-live="polite" aria-atomic="true">
-            <div id="saved-result" class="saved-result" hidden>
-              <p id="saved-message"></p>
-              <div class="saved-actions">
-                <button id="test-shortcut" class="primary-button" type="button">Test shortcut</button>
-                <button id="edit-saved" class="secondary-button" type="button">Edit</button>
-              </div>
+            <div class="form-actions">
+              <button id="cancel-edit" class="secondary" type="button">Cancel</button>
+              <button id="save" class="primary filled" type="submit">Save shortcut</button>
+            </div>
+          </form>
+        </details>
+        <div role="status" aria-live="polite" aria-atomic="true">
+          <div id="saved-result" class="saved-result" hidden>
+            <p id="saved-message"></p>
+            <div class="saved-actions">
+              <button id="test-shortcut" class="primary" type="button">Test shortcut</button>
+              <button id="edit-saved" type="button">Edit</button>
+              <button id="add-another" class="secondary" type="button">Add another</button>
             </div>
           </div>
-        </form>
-      </details>
+        </div>
+      </section>
     </main>
   </div>
 
-  <div id="toast" class="toast hidden" role="status" aria-live="polite">
+  <div id="toast" class="toast" popover="manual" role="status" aria-live="polite" aria-atomic="true">
     <span id="toast-message"></span>
-    <button id="toast-close" class="toast-close" type="button" aria-label="Dismiss notification"><svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
+    <button id="toast-close" class="icon-btn" type="button" aria-label="Dismiss notification"><svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
   </div>
 
-  <dialog id="confirm-modal" class="modal-overlay" aria-labelledby="confirm-title">
+  <dialog id="confirm-modal" class="modal-overlay" aria-labelledby="confirm-title" aria-describedby="confirm-description">
     <div class="modal-box">
-      <p id="confirm-title"></p>
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-description" class="modal-description"></p>
       <div class="modal-actions">
-        <button id="confirm-cancel" class="secondary-button" type="button">Cancel</button>
-        <button id="confirm-ok" class="danger-button" type="button"><svg id="confirm-icon" class="ui-icon" aria-hidden="true"><use href="#icon-delete"></use></svg><span id="confirm-label">Delete</span></button>
+        <button id="confirm-cancel" class="secondary" type="button" autofocus>Cancel</button>
+        <button id="confirm-ok" class="danger filled" type="button"><svg id="confirm-icon" class="ui-icon" aria-hidden="true"><use href="#icon-delete"></use></svg><span id="confirm-label">Delete</span></button>
       </div>
     </div>
   </dialog>
@@ -153,8 +164,8 @@
         <span class="open-indicator" aria-hidden="true"><svg class="ui-icon"><use href="#icon-external"></use></svg></span>
       </button>
       <div class="shortcut-actions">
-        <button class="shortcut-edit" type="button" title="Edit shortcut" aria-label="Edit shortcut"><svg class="ui-icon" aria-hidden="true"><use href="#icon-edit"></use></svg></button>
-        <button class="shortcut-delete" type="button" title="Delete shortcut" aria-label="Delete shortcut"><svg class="ui-icon" aria-hidden="true"><use href="#icon-delete"></use></svg></button>
+        <button class="shortcut-edit icon-btn" type="button" title="Edit shortcut" aria-label="Edit shortcut"><svg class="ui-icon" aria-hidden="true"><use href="#icon-edit"></use></svg></button>
+        <button class="shortcut-delete danger icon-only" type="button" title="Delete shortcut" aria-label="Delete shortcut"><svg class="ui-icon" aria-hidden="true"><use href="#icon-delete"></use></svg></button>
       </div>
     </li>
   </template>

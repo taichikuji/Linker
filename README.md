@@ -36,7 +36,7 @@ Click the Linker toolbar icon to open the side-panel manager, then select **Add 
 
 If the destination is already saved, Linker shows the matching shortcuts with an **Edit** action. Matches preserve query strings, fragments, and path differences; a shortcut's default URL is labeled separately. These hints are advisory, so you can save another name for the same destination.
 
-After saving, an inline confirmation offers **Test shortcut** and **Edit**. Test opens the actual `go/<shortcut>` address in a new tab after the browser's redirect rules are ready. For a parameterized shortcut, it tests the default destination. Opening the test tab does not verify that the destination website is available. The confirmation stays until you change or cancel the editor, start another edit, or the saved shortcut changes through sync.
+After saving, a compact confirmation replaces the whole editor and offers **Test shortcut**, **Edit**, and **Add another**. Test opens the actual `go/<shortcut>` address in a new tab after the browser's redirect rules are ready. For a parameterized shortcut, it tests the default destination. Opening the test tab does not verify that the destination website is available. Edit reopens the saved shortcut; Add another opens a fresh form and offers the active tab's URL if tab access is allowed. The confirmation stays while you search and clears when you start another edit or the saved shortcut changes through sync.
 
 ```mermaid
 flowchart TD
@@ -75,7 +75,7 @@ flowchart TD
 
 Ordinary URLs, unknown shortcuts, and unsupported `go/` paths receive no redirect from Linker. For example, a shortcut without `{*}` does not accept an extra path such as `go/docs/123`.
 
-The manager lets you search, edit, delete, and open shortcuts in a new tab. Press Cmd/Ctrl+F outside the editor or a dialog to focus search. Matching shortcut names and destinations are highlighted; Enter opens the first result. Opening a shortcut containing `{*}` from the manager uses its default URL. In Chrome's address bar, type `go/` and press Space to see saved shortcut names matching the prefix you type; unknown or unsupported inputs do not open a tab.
+The manager displays shortcuts as individual cards, with search in the header and **More actions (⋮) → Help, Export, Import**. Click outside More actions or press Escape to close it. Press Cmd/Ctrl+F outside the editor or a dialog to focus search. Matching shortcut names and destinations are highlighted; Enter opens the first result. Opening a shortcut containing `{*}` from the manager uses its default URL. In Chrome's address bar, type `go/` and press Space to see saved shortcut names matching the prefix you type; unknown or unsupported inputs do not open a tab.
 
 You can export shortcuts as JSON and import them into Linker, including compatible [Linkify](https://chromewebstore.google.com/detail/linkify/gojgbkejhelijlkgpmlbbkklljgmfljj) exports. Shortcuts use Chrome's sync storage and can sync between browsers according to your Chrome Sync settings. The manager follows your browser's light or dark theme.
 
@@ -102,6 +102,8 @@ bun test
 ```
 
 Before releasing, test the extension in Chrome and at least one other Chromium browser such as Brave or Edge. Check the side panel at narrow and wide widths, URL prefill, direct and parameterized shortcuts, import/export, redirect rules, and behavior after restarting the browser. The release workflow is documented in [GUIDE.md](.github/workflows/GUIDE.md).
+
+Linker's common UI follows [Stasher](https://github.com/taichikuji/Stasher). For UI changes, use the [visual review checklist](.github/workflows/GUIDE.md#ui-review) to compare both managers at matching sizes and themes.
 
 ## Contributing
 

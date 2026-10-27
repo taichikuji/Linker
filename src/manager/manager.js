@@ -41,6 +41,9 @@ const elements = {
   savedMessage: document.getElementById('saved-message'),
   testButton: document.getElementById('test-shortcut'),
   savedEditButton: document.getElementById('edit-saved'),
+  addAnotherButton: document.getElementById('add-another'),
+  moreButton: document.getElementById('more-button'),
+  actionsMenu: document.getElementById('actions-menu'),
   helpButton: document.getElementById('btn-help'),
   importButton: document.getElementById('btn-import'),
   fileInput: document.getElementById('import-file'),
@@ -51,6 +54,7 @@ const elements = {
   toastClose: document.getElementById('toast-close'),
   confirmModal: document.getElementById('confirm-modal'),
   confirmTitle: document.getElementById('confirm-title'),
+  confirmDescription: document.getElementById('confirm-description'),
   confirmOk: document.getElementById('confirm-ok'),
   confirmIcon: document.getElementById('confirm-icon'),
   confirmLabel: document.getElementById('confirm-label'),
@@ -98,6 +102,17 @@ function focusSearch() {
   elements.search.select();
 }
 
+async function prefillNewShortcut() {
+  elements.urlInput.value = '';
+  updateVariableFields();
+  renderDestinationHints();
+  try {
+    if (await chrome.permissions.request({ permissions: ['tabs'] })) await prefillActiveTab();
+  } catch (error) {
+    console.error('Error requesting tab access:', error);
+  }
+}
+
 function setupEventListeners() {
   document.addEventListener('keydown', event => {
     if (event.key.toLowerCase() !== 'f' || !(event.metaKey || event.ctrlKey)
@@ -125,14 +140,7 @@ function setupEventListeners() {
   elements.addSection.querySelector('summary').addEventListener('click', async () => {
     if (elements.addSection.open || state.editingShortcut) return;
     clearSavedResult();
-    elements.urlInput.value = '';
-    updateVariableFields();
-    renderDestinationHints();
-    try {
-      if (await chrome.permissions.request({ permissions: ['tabs'] })) await prefillActiveTab();
-    } catch (error) {
-      console.error('Error requesting tab access:', error);
-    }
+    await prefillNewShortcut();
   });
   elements.cancelEditButton.addEventListener('click', () => {
     resetForm();
@@ -143,6 +151,17 @@ function setupEventListeners() {
   elements.savedEditButton.addEventListener('click', () => {
     if (state.savedResult) startEditing(state.savedResult.shortcut);
   });
+  elements.addAnotherButton.addEventListener('click', async () => {
+    resetForm();
+    elements.addSection.open = true;
+    elements.urlInput.focus();
+    await prefillNewShortcut();
+  });
+  // Close the popover before its action opens a tab, file picker, or dialog.
+  elements.actionsMenu.addEventListener('click', () => {
+    elements.actionsMenu.hidePopover();
+    elements.moreButton.focus();
+  }, { capture: true });
   elements.helpButton.addEventListener('click', openHelp);
   elements.importButton.addEventListener('click', () => elements.fileInput.click());
   elements.fileInput.addEventListener('change', importShortcuts);
@@ -244,7 +263,6 @@ function renderDestinationHints() {
       const edit = document.createElement('button');
       label.textContent = `${exact ? 'Already saved as' : 'Default destination for'} go/${shortcut}`;
       edit.type = 'button';
-      edit.className = 'secondary-button';
       edit.textContent = 'Edit';
       edit.setAttribute('aria-label', `Edit go/${shortcut}`);
       edit.addEventListener('click', () => startEditing(shortcut));
@@ -364,7 +382,9 @@ function resetForm() {
 }
 
 function clearSavedResult() {
+  if (state.savedResult) elements.addSection.open = false;
   state.savedResult = null;
+  elements.addSection.hidden = false;
   elements.savedResult.hidden = true;
   elements.savedMessage.textContent = '';
 }
@@ -452,7 +472,10 @@ async function saveShortcut() {
     elements.savedMessage.textContent = `${originalShortcut ? 'Updated' : 'Saved'} go/${shortcut}.`;
     elements.testButton.setAttribute('aria-label', `Test shortcut go/${shortcut}`);
     elements.savedEditButton.setAttribute('aria-label', `Edit go/${shortcut}`);
+    elements.addSection.open = false;
+    elements.addSection.hidden = true;
     elements.savedResult.hidden = false;
+    elements.testButton.focus();
   } catch (error) {
     console.error('Error saving shortcut:', error);
     await loadEntries();
@@ -611,14 +634,14 @@ async function importShortcuts(event) {
 function showToast(message, type = 'success') {
   elements.toastMessage.textContent = message;
   elements.toast.dataset.type = type;
-  elements.toast.classList.remove('hidden');
+  elements.toast.showPopover();
 
   if (state.toastTimeout) clearTimeout(state.toastTimeout);
   state.toastTimeout = setTimeout(hideToast, 3500);
 }
 
 function hideToast() {
-  elements.toast.classList.add('hidden');
+  elements.toast.hidePopover();
   if (state.toastTimeout) clearTimeout(state.toastTimeout);
   state.toastTimeout = null;
 }
@@ -626,10 +649,11 @@ function hideToast() {
 function showConfirmModal(message, { confirmLabel = 'Delete', danger = true } = {}) {
   return new Promise(resolve => {
     const previousFocus = document.activeElement;
-    elements.confirmTitle.textContent = message;
+    elements.confirmTitle.textContent = danger ? 'Delete shortcut?' : 'Replace shortcuts?';
+    elements.confirmDescription.textContent = message;
     elements.confirmLabel.textContent = confirmLabel;
-    elements.confirmIcon.hidden = !danger;
-    elements.confirmOk.className = danger ? 'danger-button' : 'primary-button';
+    elements.confirmIcon.toggleAttribute('hidden', !danger);
+    elements.confirmOk.className = danger ? 'danger filled' : 'primary filled';
     elements.confirmModal.returnValue = '';
 
     const finish = result => {

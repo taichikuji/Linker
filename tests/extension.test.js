@@ -126,6 +126,7 @@ function runManager(initialEntries = {}, options = {}) {
   const permissionRequests = [];
   const openedTabs = [];
   const runtimeMessages = [];
+  const errors = [];
   let entries = clone(initialEntries);
 
   const document = {
@@ -206,6 +207,18 @@ function runManager(initialEntries = {}, options = {}) {
       showModal() {
         this.open = true;
       },
+      showPopover() {
+        this.popoverOpen = true;
+      },
+      hidePopover() {
+        this.popoverOpen = false;
+      },
+      matches(selector) {
+        return selector === ':popover-open' && Boolean(this.popoverOpen);
+      },
+      toggleAttribute(name, force) {
+        this[name] = force;
+      },
       setAttribute(name, value) {
         this[name] = value;
       }
@@ -242,6 +255,7 @@ function runManager(initialEntries = {}, options = {}) {
           delete entries[key];
         },
         set: async values => {
+          if (options.failStorageSet) throw new Error('Storage write failed');
           entries = { ...entries, ...clone(values) };
         }
       },
@@ -264,7 +278,7 @@ function runManager(initialEntries = {}, options = {}) {
     Blob,
     URL,
     clearTimeout() {},
-    console,
+    console: { error: (...args) => errors.push(args) },
     document,
     setTimeout: () => 0
   });
@@ -278,6 +292,7 @@ function runManager(initialEntries = {}, options = {}) {
     permissionRequests,
     openedTabs,
     runtimeMessages,
+    errors,
     getEntries: () => clone(entries),
     setEntries: value => { entries = clone(value); }
   };
@@ -300,7 +315,10 @@ async function toggleEditor(result) {
 async function saveManagerShortcut(result, shortcut, url = 'https://example.com/docs') {
   if (Object.hasOwn(result.getEntries(), shortcut)) {
     vm.runInContext(`startEditing(${JSON.stringify(shortcut)})`, result.context);
+  } else if (!result.elements.get('saved-result').hidden) {
+    await result.elements.get('add-another').click();
   }
+  result.elements.get('add-section').open = true;
   result.elements.get('go-link').value = shortcut;
   result.elements.get('full-link').value = url;
   await result.elements.get('full-link').dispatch('input');
@@ -408,31 +426,36 @@ test('destination hints refresh after prefill, sync, and starting an edit withou
   assert.equal(hints.hidden, true);
 });
 
-test('successful saves show persistent Test and Edit actions without a success toast', async () => {
+test('successful saves replace the whole editor with persistent Test, Edit, and Add another actions', async () => {
   const result = runManager();
   await vm.runInContext('initialize()', result.context);
   await saveManagerShortcut(result, 'docs');
   assert.equal(result.elements.get('saved-result').hidden, false);
   assert.equal(result.elements.get('saved-message').textContent, 'Saved go/docs.');
-  assert.equal(result.elements.get('toast').classList.contains('hidden'), true);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+  assert.equal(result.elements.get('add-section').hidden, true);
+  assert.equal(result.elements.get('add-section').open, false);
+  assert.equal(result.context.document.activeElement, result.elements.get('test-shortcut'));
   assert.equal(result.elements.get('go-link').value, '');
   assert.equal(result.elements.get('full-link').value, 'https://example.com/docs');
   assert.equal(result.elements.get('destination-hints').hidden, true);
 
   await result.elements.get('search').dispatch('input');
   assert.equal(result.elements.get('saved-result').hidden, false);
+  assert.equal(result.elements.get('add-section').hidden, true);
   await result.elements.get('edit-saved').click();
   assert.equal(result.elements.get('saved-result').hidden, true);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('add-section').open, true);
   assert.equal(result.elements.get('go-link').value, 'docs');
   await result.elements.get('editor-form').dispatch('submit');
   assert.equal(result.elements.get('saved-message').textContent, 'Updated go/docs.');
 
-  for (const field of ['full-link', 'go-link', 'fallback-link']) {
-    await result.elements.get(field).dispatch('input');
-    assert.equal(result.elements.get('saved-result').hidden, true, field);
-    assert.equal(result.elements.get('destination-hints').hidden, false, field);
-    await saveManagerShortcut(result, `next-${field}`);
-  }
+  await result.elements.get('add-another').click();
+  assert.equal(result.elements.get('saved-result').hidden, true);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('add-section').open, true);
+  assert.equal(result.elements.get('go-link').value, '');
   await result.elements.get('cancel-edit').dispatch('click');
   assert.equal(result.elements.get('saved-result').hidden, true);
   assert.equal(result.elements.get('destination-hints').hidden, true);
@@ -456,10 +479,106 @@ test('saved results clear only when their shortcut changes through sync or anoth
     result.listeners.storageChanged({ docs: {} }, 'sync');
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(result.elements.get('saved-result').hidden, true);
+    assert.equal(result.elements.get('add-section').hidden, false);
+    assert.equal(result.elements.get('add-section').open, false);
   }
   await saveManagerShortcut(result, 'another');
   vm.runInContext("startEditing('docs')", result.context);
   assert.equal(result.elements.get('saved-result').hidden, true);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('add-section').open, true);
+});
+
+test('Add another clears the previous fields and respects optional active-tab access', async () => {
+  for (const granted of [true, false]) {
+    const result = runManager({}, {
+      tabsGranted: granted,
+      activeTab: { url: 'https://example.com/current' }
+    });
+    await vm.runInContext('initialize()', result.context);
+    result.elements.get('fallback-link').value = 'https://example.com/issues';
+    await saveManagerShortcut(result, 'issues', 'https://example.com/issues/{*}');
+    await result.elements.get('add-another').click();
+
+    assert.equal(result.elements.get('saved-result').hidden, true);
+    assert.equal(result.elements.get('add-section').hidden, false);
+    assert.equal(result.elements.get('add-section').open, true);
+    assert.equal(result.elements.get('go-link').value, '');
+    assert.equal(result.elements.get('fallback-link').value, '');
+    assert.equal(result.elements.get('full-link').value, granted ? 'https://example.com/current' : '');
+    assert.equal(result.elements.get('variable-badge').hidden, true);
+    assert.equal(result.context.document.activeElement, result.elements.get('full-link'));
+    assert.deepEqual(result.permissionRequests, [{ permissions: ['tabs'] }]);
+    assert.equal(result.tabQueries.length, granted ? 1 : 0);
+    await saveManagerShortcut(result, 'next', 'https://example.com/new');
+    assert.equal(result.elements.get('saved-message').textContent, 'Saved go/next.');
+    assert.equal(result.elements.get('add-section').hidden, true);
+  }
+});
+
+test('failed saves keep the editor and draft available for retry', async () => {
+  const options = { failStorageSet: true };
+  const result = runManager({}, options);
+  await vm.runInContext('initialize()', result.context);
+  await saveManagerShortcut(result, 'draft');
+  assert.equal(result.elements.get('saved-result').hidden, true);
+  assert.equal(result.elements.get('add-section').hidden, false);
+  assert.equal(result.elements.get('add-section').open, true);
+  assert.equal(result.elements.get('go-link').value, 'draft');
+  assert.equal(result.elements.get('full-link').value, 'https://example.com/docs');
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  assert.deepEqual(result.getEntries(), {});
+  options.failStorageSet = false;
+  await result.elements.get('editor-form').dispatch('submit');
+  assert.equal(result.elements.get('saved-result').hidden, false);
+  assert.equal(result.elements.get('add-section').hidden, true);
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+});
+
+test('More actions closes before Help, Import, and Export and restores its trigger focus', async () => {
+  const result = runManager({ docs: { url: 'https://example.com/docs' } });
+  await vm.runInContext('initialize()', result.context);
+  const menu = result.elements.get('actions-menu');
+  let filePickerOpened = false;
+  result.elements.get('import-file').click = () => { filePickerOpened = true; };
+  for (const action of ['btn-help', 'btn-import', 'btn-export']) {
+    menu.showPopover();
+    // The browser dispatches the parent's capture listener before the button action.
+    await menu.dispatch('click');
+    assert.equal(menu.matches(':popover-open'), false);
+    assert.equal(result.context.document.activeElement, result.elements.get('more-button'));
+    await result.elements.get(action).click();
+  }
+  assert.equal(filePickerOpened, true);
+  assert.deepEqual(result.openedTabs, [{ active: true, url: 'https://github.com/taichikuji/Linker/wiki/How-to-use-Linker' }]);
+  assert.equal(result.elements.get('toast-message').textContent, 'Exported your shortcuts.');
+  assert.equal(result.elements.get('toast').matches(':popover-open'), true);
+  await result.elements.get('toast-close').click();
+  assert.equal(result.elements.get('toast').matches(':popover-open'), false);
+});
+
+test('confirmation dialogs retain cancellation and focus restoration with title and description', async () => {
+  const result = runManager();
+  await vm.runInContext('initialize()', result.context);
+  const opener = result.elements.get('more-button');
+  opener.focus();
+  const deleting = vm.runInContext("showConfirmModal('Delete go/docs?')", result.context);
+  assert.equal(result.elements.get('confirm-title').textContent, 'Delete shortcut?');
+  assert.equal(result.elements.get('confirm-description').textContent, 'Delete go/docs?');
+  assert.equal(result.elements.get('confirm-ok').className, 'danger filled');
+  assert.equal(result.elements.get('confirm-icon').hidden, false);
+  assert.equal(result.context.document.activeElement, result.elements.get('confirm-cancel'));
+  result.elements.get('confirm-modal').close();
+  assert.equal(await deleting, false);
+  assert.equal(result.context.document.activeElement, opener);
+
+  const replacing = vm.runInContext("showConfirmModal('Replace 1 shortcut?', {confirmLabel: 'Import', danger: false})", result.context);
+  assert.equal(result.elements.get('confirm-title').textContent, 'Replace shortcuts?');
+  assert.equal(result.elements.get('confirm-ok').className, 'primary filled');
+  assert.equal(result.elements.get('confirm-icon').hidden, true);
+  await result.elements.get('confirm-ok').click();
+  assert.equal(await replacing, true);
+  assert.equal(result.context.document.activeElement, opener);
 });
 
 test('shortcut tests wait for applied rules and open direct and default go routes', async () => {
@@ -851,7 +970,8 @@ test('opening the editor reads the current URL and saves it', async () => {
   assert.deepEqual(result.getEntries(), {
     example: { url: sourceUrl }
   });
-  assert.equal(editorSection.open, true);
+  assert.equal(editorSection.open, false);
+  assert.equal(editorSection.hidden, true);
 });
 
 test('declining tab access leaves the editor usable and closing does not ask again', async () => {
@@ -869,6 +989,11 @@ test('declining tab access leaves the editor usable and closing does not ask aga
   assert.deepEqual(result.tabQueries, []);
   assert.deepEqual(result.permissionRequests, [{ permissions: ['tabs'] }]);
 
+  await toggleEditor(result);
+  assert.equal(result.elements.get('add-section').open, false);
+  assert.deepEqual(result.permissionRequests, [{ permissions: ['tabs'] }]);
+  await toggleEditor(result);
+
   urlInput.value = 'https://example.com/manual';
   result.elements.get('go-link').value = 'manual';
   await result.elements.get('editor-form').dispatch('submit');
@@ -876,9 +1001,9 @@ test('declining tab access leaves the editor usable and closing does not ask aga
     manual: { url: 'https://example.com/manual' }
   });
 
-  await toggleEditor(result);
   assert.equal(result.elements.get('add-section').open, false);
-  assert.equal(result.permissionRequests.length, 1);
+  assert.equal(result.elements.get('add-section').hidden, true);
+  assert.equal(result.permissionRequests.length, 2);
   assert.equal(urlInput.value, 'https://example.com/manual');
 });
 

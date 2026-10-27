@@ -113,3 +113,23 @@ Monitor the run in the [Actions tab](https://github.com/taichikuji/Linker/action
 After the workflow completes successfully, confirm that the generated archive
 named `Linker_X.Y.Z.chromium.zip` is attached to the automated GitHub Release
 on the [Releases page](https://github.com/taichikuji/Linker/releases).
+
+## UI review
+
+Linker's shared visual reference is Stasher's manager, originally ported from
+commit `4ec5ca3`. Both extensions remain independently packaged. When changing
+common styles, compare the actual components rather than only their colors.
+
+- Open both managers at the same viewport size: 360px and 900px wide, with the
+  same height. Repeat in light and dark themes, and check a short side panel.
+- Compare the header, search, cards, More actions, notifications, and dialogs:
+  typography, borders, padding, spacing, icons, shadows, hover, and focus states.
+- Check Linker's collapsed editor, add/edit form, destination hint, and saved
+  confirmation. The saved state must hide the entire form and heading; Test,
+  Edit, and Add another must remain reachable and visible.
+- Exercise menu dismissal by clicking outside and pressing Escape. Check
+  dialog cancellation, keyboard focus restoration, and status announcements.
+- Use long names, long URLs, a long list, and parameterized shortcuts. Check
+  truncation, vertical scrolling, and that controls do not overflow horizontally.
+- Keep comparison screenshots with the review. Retain Linker's own mascot and
+  shortcut terminology while matching the common component styles.
